@@ -32,7 +32,7 @@ SQL Editor에서:
 SELECT primary_muscle_group, count(*) FROM public.exercises GROUP BY 1 ORDER BY 1;
 ```
 
-→ 6개 부위, 합계 70개면 정상.
+→ 6개 부위, 합계 80개면 정상.
 
 ## 2단계: 계정/보안 구조 이해 (참고)
 
