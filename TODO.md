@@ -3,11 +3,11 @@
 > 2026-07-05 기획 조율 확정 스펙 기준. 위에서 아래 순서로 진행하면 각 단계마다 동작하는 결과물이 나오도록 구성.
 
 ## Phase 0 — 프로젝트 셋업
-- [ ] Vite + React + TypeScript 프로젝트 생성
-- [ ] Tailwind CSS 설정 (모바일 우선 레이아웃)
-- [ ] Supabase JS 클라이언트 연결 (`.env.local`의 publishable key 사용)
-- [ ] git 저장소 초기화 (`.env.local`은 `.gitignore`에 이미 등록됨)
-- [ ] 라우팅 뼈대: 홈(오늘 운동) / 내 루틴 / 통계 / 피드 4개 탭
+- [x] Vite + React + TypeScript 프로젝트 생성
+- [x] Tailwind CSS 설정 (모바일 우선 레이아웃)
+- [x] Supabase JS 클라이언트 연결 (`.env.local`의 publishable key 사용)
+- [x] git 저장소 초기화 (`.env.local`은 `.gitignore`에 이미 등록됨)
+- [x] 라우팅 뼈대: 홈(오늘 운동) / 내 루틴 / 통계 / 피드 4개 탭
 
 ## Phase 1 — Supabase 스키마 & 계정 구조
 - [ ] 테이블 설계 및 생성 SQL 작성
