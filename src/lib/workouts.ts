@@ -142,6 +142,17 @@ export async function addEntry(
   if (error) throw error
 }
 
+export async function updateEntryNotes(
+  entryId: string,
+  notes: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('workout_entries')
+    .update({ notes: notes.trim() === '' ? null : notes })
+    .eq('id', entryId)
+  if (error) throw error
+}
+
 export async function deleteEntry(entryId: string): Promise<void> {
   const { error } = await supabase
     .from('workout_entries')

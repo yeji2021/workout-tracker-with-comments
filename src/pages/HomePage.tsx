@@ -30,6 +30,7 @@ import {
   reorderEntries,
   setSessionShared,
   todayISO,
+  updateEntryNotes,
   updateSet,
   type LastPerformance,
 } from '../lib/workouts'
@@ -144,6 +145,28 @@ export function HomePage() {
     clearTimeout(saveTimers.current[key])
     saveTimers.current[key] = setTimeout(() => {
       updateSet(setId, patch).catch(() => {})
+    }, 500)
+  }
+
+  // 운동별 메모: 로컬 반영 + debounce 저장
+  function setEntryNotesLocal(entryId: string, notes: string) {
+    setSession((s) =>
+      s
+        ? {
+            ...s,
+            entries: s.entries.map((e) =>
+              e.id === entryId ? { ...e, notes } : e,
+            ),
+          }
+        : s,
+    )
+  }
+  function changeNotes(entryId: string, notes: string) {
+    setEntryNotesLocal(entryId, notes)
+    const key = entryId + ':notes'
+    clearTimeout(saveTimers.current[key])
+    saveTimers.current[key] = setTimeout(() => {
+      updateEntryNotes(entryId, notes).catch(() => {})
     }, 500)
   }
 
@@ -324,6 +347,10 @@ export function HomePage() {
                 onPersistSet={persistSet}
                 onAddSet={() => handleAddSet(entry.id)}
                 onDeleteSet={(setId) => handleDeleteSet(entry.id, setId)}
+                onChangeNotes={(notes) => changeNotes(entry.id, notes)}
+                onPersistNotes={(notes) =>
+                  updateEntryNotes(entry.id, notes).catch(() => {})
+                }
                 onRemove={() => handleRemoveEntry(entry.id)}
               />
             ))}

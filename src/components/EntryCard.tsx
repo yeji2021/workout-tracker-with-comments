@@ -12,6 +12,8 @@ export function EntryCard({
   onPersistSet,
   onAddSet,
   onDeleteSet,
+  onChangeNotes,
+  onPersistNotes,
   onRemove,
 }: {
   entry: WorkoutEntry
@@ -28,6 +30,8 @@ export function EntryCard({
   ) => void
   onAddSet: () => void
   onDeleteSet: (setId: string) => void
+  onChangeNotes: (notes: string) => void
+  onPersistNotes: (notes: string) => void
   onRemove: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -65,6 +69,16 @@ export function EntryCard({
           삭제
         </button>
       </div>
+
+      {/* 메모 (운동별 자유 기록: 폼 느낌, 통증 등) */}
+      <input
+        value={entry.notes ?? ''}
+        onChange={(e) => onChangeNotes(e.target.value)}
+        onBlur={(e) => onPersistNotes(e.target.value)}
+        placeholder="📝 메모 추가"
+        maxLength={200}
+        className="mb-2 w-full rounded-md bg-[var(--color-surface-2)] px-2.5 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+      />
 
       {/* 지난번 대비 */}
       {last && last.sets.length > 0 && (
