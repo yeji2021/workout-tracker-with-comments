@@ -37,7 +37,8 @@ import { ExercisePicker } from '../components/ExercisePicker'
 import { EntryCard } from '../components/EntryCard'
 import { RestTimer } from '../components/RestTimer'
 
-const REST_SECONDS = 90
+const REST_SECONDS = 60
+
 
 export function HomePage() {
   const { profile } = useProfile()
@@ -56,6 +57,26 @@ export function HomePage() {
     // distance 임계값 → 입력 탭/타이핑은 드래그로 오인되지 않음
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   )
+
+  // 추가 후 스크롤 대상. session 커밋(=DOM 갱신) 이후 useEffect에서 실행한다.
+  const pendingScroll = useRef<
+    null | { type: 'bottom' } | { type: 'set'; id: string }
+  >(null)
+  useEffect(() => {
+    const p = pendingScroll.current
+    if (!p) return
+    pendingScroll.current = null
+    // useEffect는 DOM 커밋 후 실행되므로 scrollHeight가 최신값. rAF는 비포그라운드
+    // 프리뷰에서 throttle될 수 있어 직접 스크롤한다.
+    if (p.type === 'bottom') {
+      const main = document.querySelector('main')
+      if (main) main.scrollTop = main.scrollHeight
+    } else {
+      document
+        .querySelector(`[data-set-id="${p.id}"]`)
+        ?.scrollIntoView({ block: 'center' })
+    }
+  }, [session])
 
   // 특정 운동의 지난 기록을 캐시에 로드
   const loadLast = useCallback(
@@ -103,6 +124,7 @@ export function HomePage() {
     if (!ses) ses = await createSession(profile, today)
     await addEntry(ses.id, exercise.id, ses.entries.length)
     setPickerOpen(false)
+    pendingScroll.current = { type: 'bottom' } // 새 운동이 보이도록 아래로 스크롤
     await refreshSession()
     loadLast(exercise.id)
   }
@@ -173,6 +195,7 @@ export function HomePage() {
       fill.reps,
       entry.sets.length,
     )
+    pendingScroll.current = { type: 'set', id: created.id } // 새 세트로 스크롤
     setSession((s) =>
       s
         ? {

@@ -129,6 +129,7 @@ function SetRow({
   const parseReps = (v: string) => (v.trim() === '' ? 0 : Number(v))
   return (
     <div
+      data-set-id={set.id}
       className={
         'grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] items-center gap-2 rounded-lg px-1 py-1 ' +
         (set.is_completed ? 'bg-[var(--color-success)]/10' : '')

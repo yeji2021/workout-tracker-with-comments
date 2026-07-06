@@ -40,16 +40,24 @@ export function RestTimer({
           </div>
         </div>
         {!done && (
-          <button
-            onClick={() => onAdjust(15)}
-            className="rounded-lg bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold"
-          >
-            +15초
-          </button>
+          <>
+            <button
+              onClick={() => onAdjust(-10)}
+              className="rounded-lg bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-semibold"
+            >
+              −10초
+            </button>
+            <button
+              onClick={() => onAdjust(10)}
+              className="rounded-lg bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-semibold"
+            >
+              +10초
+            </button>
+          </>
         )}
         <button
           onClick={onDismiss}
-          className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white"
+          className="rounded-lg bg-[var(--color-accent)] px-2.5 py-1.5 text-xs font-semibold text-white"
         >
           {done ? '닫기' : '건너뛰기'}
         </button>
