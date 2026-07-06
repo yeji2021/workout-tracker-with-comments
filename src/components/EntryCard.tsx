@@ -125,8 +125,14 @@ function SetRow({
   onPersist: (patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps'>>) => void
   onDelete: () => void
 }) {
-  const parseWeight = (v: string) => (v.trim() === '' ? null : Number(v))
-  const parseReps = (v: string) => (v.trim() === '' ? 0 : Number(v))
+  const parseWeight = (v: string) => {
+    const n = Number(v)
+    return v.trim() === '' || Number.isNaN(n) ? null : n
+  }
+  const parseReps = (v: string) => {
+    const n = parseInt(v, 10)
+    return Number.isNaN(n) ? 0 : Math.max(0, n)
+  }
   return (
     <div
       data-set-id={set.id}
@@ -140,7 +146,11 @@ function SetRow({
       </span>
       <input
         inputMode="decimal"
-        value={set.weight_kg ?? ''}
+        value={
+          set.weight_kg == null || Number.isNaN(set.weight_kg)
+            ? ''
+            : set.weight_kg
+        }
         placeholder={prev?.weight_kg != null ? String(prev.weight_kg) : '0'}
         onChange={(e) => onChange({ weight_kg: parseWeight(e.target.value) })}
         onBlur={(e) => onPersist({ weight_kg: parseWeight(e.target.value) })}

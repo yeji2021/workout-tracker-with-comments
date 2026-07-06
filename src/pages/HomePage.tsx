@@ -33,9 +33,11 @@ import {
   updateSet,
   type LastPerformance,
 } from '../lib/workouts'
+import { createRoutine } from '../lib/routines'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { EntryCard } from '../components/EntryCard'
 import { RestTimer } from '../components/RestTimer'
+import { SaveRoutineModal } from '../components/SaveRoutineModal'
 
 const REST_SECONDS = 60
 
@@ -52,6 +54,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null)
+  const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
 
   const sensors = useSensors(
     // distance 임계값 → 입력 탭/타이핑은 드래그로 오인되지 않음
@@ -268,17 +271,25 @@ export function HomePage() {
           <p className="text-xs text-[var(--color-text-dim)]">{today}</p>
         </div>
         {hasEntries && (
-          <button
-            onClick={toggleShare}
-            className={
-              'rounded-full px-3 py-1.5 text-xs font-semibold ' +
-              (session!.is_shared
-                ? 'bg-[var(--color-accent)] text-white'
-                : 'border border-[var(--color-border)] text-[var(--color-text-dim)]')
-            }
-          >
-            {session!.is_shared ? '공유됨 ✓' : '피드에 공유'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSaveRoutineOpen(true)}
+              className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-dim)]"
+            >
+              루틴 저장
+            </button>
+            <button
+              onClick={toggleShare}
+              className={
+                'rounded-full px-3 py-1.5 text-xs font-semibold ' +
+                (session!.is_shared
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'border border-[var(--color-border)] text-[var(--color-text-dim)]')
+              }
+            >
+              {session!.is_shared ? '공유됨 ✓' : '피드에 공유'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -344,6 +355,21 @@ export function HomePage() {
           endsAt={restEndsAt}
           onAdjust={(d) => setRestEndsAt((t) => (t ?? Date.now()) + d * 1000)}
           onDismiss={() => setRestEndsAt(null)}
+        />
+      )}
+
+      {saveRoutineOpen && session && profile && (
+        <SaveRoutineModal
+          defaultName={`${today} 루틴`}
+          onClose={() => setSaveRoutineOpen(false)}
+          onSave={async (name) => {
+            await createRoutine(
+              profile.profile_id,
+              name,
+              session.entries.map((e) => e.exercise_id),
+            )
+            setSaveRoutineOpen(false)
+          }}
         />
       )}
     </div>

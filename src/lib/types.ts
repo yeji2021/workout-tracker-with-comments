@@ -41,6 +41,20 @@ export interface WorkoutSession {
   entries: WorkoutEntry[]
 }
 
+export interface RoutineEntry {
+  id: string
+  routine_id: string
+  exercise_id: string
+  order_index: number
+  exercise?: Exercise
+}
+
+export interface Routine {
+  id: string
+  name: string
+  entries: RoutineEntry[]
+}
+
 // 온보딩/복구 RPC 응답 및 로컬 캐시
 export interface Profile {
   profile_id: string
