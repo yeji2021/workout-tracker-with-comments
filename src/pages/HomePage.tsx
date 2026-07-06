@@ -390,12 +390,13 @@ export function HomePage() {
           defaultName={`${today} 루틴`}
           onClose={() => setSaveRoutineOpen(false)}
           onSave={async (name) => {
+            // 여기서 모달을 닫지 않는다 — 모달이 성공 화면을 보여주고
+            // 사용자가 확인을 누르면 onClose로 닫힌다.
             await createRoutine(
               profile.profile_id,
               name,
               session.entries.map((e) => e.exercise_id),
             )
-            setSaveRoutineOpen(false)
           }}
         />
       )}

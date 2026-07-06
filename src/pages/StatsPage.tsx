@@ -18,6 +18,13 @@ import { MuscleBars } from '../components/MuscleBars'
 import { BodyHeatmap } from '../components/BodyHeatmap'
 import { CalendarHeatmap } from '../components/CalendarHeatmap'
 
+// 받침 유무에 따라 을/를 선택 (가슴→을, 어깨→를)
+function eulReul(word: string): string {
+  const code = word.charCodeAt(word.length - 1)
+  if (code < 0xac00 || code > 0xd7a3) return '를'
+  return (code - 0xac00) % 28 > 0 ? '을' : '를'
+}
+
 const PERIODS: { key: Period; label: string }[] = [
   { key: '7', label: '7일' },
   { key: '30', label: '30일' },
@@ -135,7 +142,8 @@ export function StatsPage() {
               const up = d > 0
               return (
                 <p key={g} className="text-sm">
-                  <b>{g}</b>를{' '}
+                  <b>{g}</b>
+                  {eulReul(g)}{' '}
                   <span
                     style={{ color: up ? 'var(--color-success)' : 'var(--color-danger)' }}
                   >

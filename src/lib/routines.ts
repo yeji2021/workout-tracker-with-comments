@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import type { Profile, Routine } from './types'
-import { addEntry, createSession, getSessionByDate } from './workouts'
+import { createSession, getSessionByDate } from './workouts'
 
 const ROUTINE_SELECT =
   'id,name,' +
@@ -106,8 +106,13 @@ export async function applyRoutineToToday(
   let session = await getSessionByDate(profile.profile_id, date)
   if (!session) session = await createSession(profile, date)
   const start = session.entries.length
-  // 순서 보장을 위해 순차 삽입
-  for (let i = 0; i < exerciseIds.length; i++) {
-    await addEntry(session.id, exerciseIds[i], start + i)
-  }
+  if (exerciseIds.length === 0) return
+  // order_index를 미리 계산해 한 번에 배치 삽입 (N+1 왕복 제거)
+  const rows = exerciseIds.map((exId, i) => ({
+    session_id: session.id,
+    exercise_id: exId,
+    order_index: start + i,
+  }))
+  const { error } = await supabase.from('workout_entries').insert(rows)
+  if (error) throw error
 }
