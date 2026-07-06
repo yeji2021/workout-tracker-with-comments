@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { supabase } from './supabase'
 import { subscribeFeed } from './feed'
 
@@ -32,9 +32,12 @@ export async function fetchFeedUnread(profileId: string): Promise<boolean> {
   return (c.count ?? 0) + (r.count ?? 0) > 0
 }
 
-// 피드 탭 뱃지용 훅 (AppLayout에서 사용). 항상 마운트돼 있어 실시간으로 갱신됨.
+// 피드 안읽음 여부 훅 (탭 뱃지·홈 대시보드 등에서 사용). 실시간으로 갱신됨.
+// 여러 곳에서 동시에 써도 되도록 실시간 채널명을 인스턴스별로 고유하게 만든다
+// (subscribeFeed는 채널명이 중복되면 두 번째 구독에서 예외를 던진다).
 export function useFeedUnread(profileId: string | undefined): boolean {
   const [unread, setUnread] = useState(false)
+  const channelName = `feed-badge-${useId()}`
   useEffect(() => {
     if (!profileId) return
     let cancelled = false
@@ -43,7 +46,7 @@ export function useFeedUnread(profileId: string | undefined): boolean {
         .then((u) => !cancelled && setUnread(u))
         .catch(() => {})
     check()
-    const unsub = subscribeFeed(check, 'feed-badge')
+    const unsub = subscribeFeed(check, channelName)
     const onSeen = () => setUnread(false)
     window.addEventListener('feed-seen', onSeen)
     return () => {
@@ -51,6 +54,6 @@ export function useFeedUnread(profileId: string | undefined): boolean {
       unsub()
       window.removeEventListener('feed-seen', onSeen)
     }
-  }, [profileId])
+  }, [profileId, channelName])
   return unread
 }

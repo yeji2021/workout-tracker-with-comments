@@ -14,6 +14,7 @@ import {
   type StatSession,
 } from '../lib/stats'
 import { buildAiPrompt } from '../lib/aiPrompt'
+import { fmtVolume } from '../lib/format'
 import { MuscleBars } from '../components/MuscleBars'
 import { BodyHeatmap } from '../components/BodyHeatmap'
 import { CalendarHeatmap } from '../components/CalendarHeatmap'
@@ -98,7 +99,7 @@ export function StatsPage() {
     }
   }
 
-  const fmtKg = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}t` : `${Math.round(n)}kg`)
+  const fmtKg = fmtVolume
 
   if (loading) {
     return (

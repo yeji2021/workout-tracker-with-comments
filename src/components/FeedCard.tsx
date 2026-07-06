@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react'
 import { FEED_EMOJIS, type FeedItem } from '../lib/feed'
+import { fmtVolume } from '../lib/format'
 
 function relativeDate(iso: string, today: string): string {
   if (iso === today) return '오늘'
   return iso.slice(5).replace('-', '/')
-}
-
-function fmtVolume(n: number): string {
-  if (n <= 0) return ''
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}t` : `${Math.round(n)}kg`
 }
 
 export function FeedCard({

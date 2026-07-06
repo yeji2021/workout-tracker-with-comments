@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { HomePage } from './pages/HomePage'
+import { LogPage } from './pages/LogPage'
 import { RoutinesPage } from './pages/RoutinesPage'
 import { StatsPage } from './pages/StatsPage'
 import { FeedPage } from './pages/FeedPage'
@@ -45,6 +46,7 @@ function Gate() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
+          <Route path="log" element={<LogPage />} />
           <Route path="routines" element={<RoutinesPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="feed" element={<FeedPage />} />

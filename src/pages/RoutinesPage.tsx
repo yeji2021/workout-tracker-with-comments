@@ -51,7 +51,7 @@ export function RoutinesPage() {
     try {
       const ids = routine.entries.map((e) => e.exercise_id)
       await applyRoutineToToday(profile, ids, todayISO())
-      navigate('/') // 오늘 탭으로 이동 → 홈이 오늘 세션을 다시 불러옴
+      navigate('/log') // 기록 화면으로 이동 → 바로 세트 입력 시작
     } finally {
       setStarting(null)
     }

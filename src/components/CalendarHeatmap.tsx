@@ -1,5 +1,6 @@
 import { shiftISO } from '../lib/stats'
 import { todayISO } from '../lib/workouts'
+import { fmtVolume } from '../lib/format'
 
 const WEEKS = 16 // 최근 16주
 
@@ -54,7 +55,7 @@ export function CalendarHeatmap({
             {col.map((cell) => (
               <div
                 key={cell.iso}
-                title={`${cell.iso}${cell.vol ? ` · ${Math.round(cell.vol).toLocaleString()}kg` : ''}`}
+                title={`${cell.iso}${cell.vol ? ` · ${fmtVolume(cell.vol)}` : ''}`}
                 className="h-3 w-3 rounded-[3px]"
                 style={{
                   background: cell.future
