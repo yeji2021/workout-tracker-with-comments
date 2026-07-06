@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useProfile } from '../context/ProfileContext'
+import { useFeedUnread } from '../lib/feedUnread'
 
 interface Tab {
   to: string
@@ -15,6 +17,9 @@ const TABS: Tab[] = [
 ]
 
 export function AppLayout() {
+  const { profile } = useProfile()
+  const feedUnread = useFeedUnread(profile?.profile_id)
+
   return (
     <div className="mx-auto flex h-full max-w-md flex-col bg-[var(--color-bg)]">
       {/* 콘텐츠 영역 — 하단 탭바 높이만큼 여백 확보 */}
@@ -45,7 +50,13 @@ export function AppLayout() {
                   ].join(' ')
                 }
               >
-                <span className="text-xl leading-none">{tab.icon}</span>
+                <span className="relative text-xl leading-none">
+                  {tab.icon}
+                  {/* 피드 탭 안읽음 표시 */}
+                  {tab.to === '/feed' && feedUnread && (
+                    <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-danger)]" />
+                  )}
+                </span>
                 <span>{tab.label}</span>
               </NavLink>
             </li>
