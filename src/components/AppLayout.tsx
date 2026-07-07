@@ -8,9 +8,10 @@ interface Tab {
   icon: string
 }
 
-// 4개 탭: 홈(오늘 운동) / 내 루틴 / 통계 / 피드
+// 5개 탭: 홈(오늘 운동) / 기록(캘린더) / 내 루틴 / 통계 / 피드
 const TABS: Tab[] = [
   { to: '/', label: '오늘', icon: '🏋️' },
+  { to: '/history', label: '기록', icon: '🗓️' },
   { to: '/routines', label: '루틴', icon: '📋' },
   { to: '/stats', label: '통계', icon: '📊' },
   { to: '/feed', label: '피드', icon: '💬' },

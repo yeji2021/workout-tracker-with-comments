@@ -52,7 +52,7 @@ export async function addCustomExercise(
 
 // ── 세션 조회/생성 ──────────────────────────────────────────────────
 const SESSION_SELECT =
-  'id,user_id,group_id,date,is_shared,' +
+  'id,user_id,group_id,date,is_shared,started_at,ended_at,' +
   'workout_entries(id,session_id,exercise_id,order_index,notes,' +
   'sets(id,entry_id,weight_kg,reps,is_completed,order_index),' +
   'exercises(id,name,primary_muscle_group,secondary_muscle_group,is_default,created_by))'
@@ -82,6 +82,8 @@ function mapSession(row: Record<string, unknown>): WorkoutSession {
     group_id: row.group_id as string,
     date: row.date as string,
     is_shared: row.is_shared as boolean,
+    started_at: (row.started_at as string | null) ?? null,
+    ended_at: (row.ended_at as string | null) ?? null,
     entries,
   }
 }
@@ -110,6 +112,7 @@ export async function createSession(
       user_id: profile.profile_id,
       group_id: profile.group_id,
       date,
+      started_at: new Date().toISOString(), // 세션 최초 생성 = 운동 시작
     })
     .select(SESSION_SELECT)
     .single()
@@ -128,6 +131,86 @@ export async function setSessionShared(
   if (error) throw error
 }
 
+// "운동 완료" — 종료 시각을 기록해 소요시간/칼로리 계산의 기준이 된다.
+export async function endSession(sessionId: string): Promise<string> {
+  const endedAt = new Date().toISOString()
+  const { error } = await supabase
+    .from('workout_sessions')
+    .update({ ended_at: endedAt })
+    .eq('id', sessionId)
+  if (error) throw error
+  return endedAt
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('workout_sessions')
+    .delete()
+    .eq('id', sessionId)
+  if (error) throw error
+}
+
+// ── 기록 탭(캘린더/상세)용 세션 개요 ────────────────────────────────
+export interface SessionOverview {
+  id: string
+  date: string
+  is_shared: boolean
+  started_at: string | null
+  ended_at: string | null
+  exerciseCount: number
+  setCount: number
+  volume: number
+}
+
+// 전체 세션의 가벼운 요약 목록 (캘린더 점 표시 + 날짜 순회 + N번째 운동 계산용)
+export async function listSessionsOverview(
+  profileId: string,
+): Promise<SessionOverview[]> {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select(
+      'id,date,is_shared,started_at,ended_at,' +
+        'workout_entries(id,sets(weight_kg,reps,is_completed))',
+    )
+    .eq('user_id', profileId)
+    .order('date', { ascending: true })
+  if (error) throw error
+  const rows = (data ?? []) as unknown as {
+    id: string
+    date: string
+    is_shared: boolean
+    started_at: string | null
+    ended_at: string | null
+    workout_entries: {
+      sets: { weight_kg: number | null; reps: number; is_completed: boolean }[]
+    }[]
+  }[]
+  return rows
+    .map((row) => {
+      let setCount = 0
+      let volume = 0
+      for (const e of row.workout_entries) {
+        for (const st of e.sets) {
+          if (st.reps > 0) {
+            setCount += 1
+            volume += (st.weight_kg ?? 0) * st.reps
+          }
+        }
+      }
+      return {
+        id: row.id,
+        date: row.date,
+        is_shared: row.is_shared,
+        started_at: row.started_at,
+        ended_at: row.ended_at,
+        exerciseCount: row.workout_entries.length,
+        setCount,
+        volume,
+      }
+    })
+    .filter((s) => s.exerciseCount > 0) // 빈 세션(생성만 되고 운동 없음)은 기록에서 제외
+}
+
 // ── 운동 항목 (entry) ───────────────────────────────────────────────
 export async function addEntry(
   sessionId: string,
@@ -139,6 +222,22 @@ export async function addEntry(
     exercise_id: exerciseId,
     order_index: orderIndex,
   })
+  if (error) throw error
+}
+
+// 다른 세션의 운동 구성을 그대로 복사할 때 사용 ("이 기록으로 운동 시작")
+export async function addEntriesBulk(
+  sessionId: string,
+  exerciseIds: string[],
+  startIndex: number,
+): Promise<void> {
+  if (exerciseIds.length === 0) return
+  const rows = exerciseIds.map((exId, i) => ({
+    session_id: sessionId,
+    exercise_id: exId,
+    order_index: startIndex + i,
+  }))
+  const { error } = await supabase.from('workout_entries').insert(rows)
   if (error) throw error
 }
 

@@ -13,6 +13,8 @@ import {
 } from '../lib/stats'
 import { fmtVolume } from '../lib/format'
 import type { WorkoutSession } from '../lib/types'
+import { InstallPrompt } from '../components/InstallPrompt'
+import { ElapsedTimer } from '../components/ElapsedTimer'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 function fmtToday(iso: string): string {
@@ -104,6 +106,8 @@ export function HomePage() {
         <p className="text-xs text-[var(--color-text-dim)]">{fmtToday(today)}</p>
       </div>
 
+      <InstallPrompt />
+
       {/* 오늘 운동 카드 */}
       <div className="mb-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         {started ? (
@@ -112,11 +116,21 @@ export function HomePage() {
               <h2 className="text-sm font-semibold text-[var(--color-text-dim)]">
                 오늘 운동
               </h2>
-              {session?.is_shared && (
-                <span className="text-xs text-[var(--color-accent)]">
-                  피드에 공유됨
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {session?.started_at && !session.ended_at && (
+                  <ElapsedTimer startedAt={session.started_at} />
+                )}
+                {session?.ended_at && (
+                  <span className="text-xs font-semibold text-[var(--color-accent)]">
+                    ✅ 완료
+                  </span>
+                )}
+                {session?.is_shared && (
+                  <span className="text-xs text-[var(--color-accent)]">
+                    피드에 공유됨
+                  </span>
+                )}
+              </div>
             </div>
             <div className="mb-4 flex items-end gap-4">
               <div>

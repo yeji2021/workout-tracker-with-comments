@@ -5,6 +5,8 @@ import { LogPage } from './pages/LogPage'
 import { RoutinesPage } from './pages/RoutinesPage'
 import { StatsPage } from './pages/StatsPage'
 import { FeedPage } from './pages/FeedPage'
+import { HistoryPage } from './pages/HistoryPage'
+import { SessionDetailPage } from './pages/SessionDetailPage'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
 import { OnboardingPage } from './pages/OnboardingPage'
 
@@ -47,6 +49,8 @@ function Gate() {
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
           <Route path="log" element={<LogPage />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="session/:date" element={<SessionDetailPage />} />
           <Route path="routines" element={<RoutinesPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="feed" element={<FeedPage />} />

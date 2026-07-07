@@ -25,6 +25,7 @@ import {
   createSession,
   deleteEntry,
   deleteSet,
+  endSession,
   getLastPerformance,
   getSessionByDate,
   listExercises,
@@ -36,12 +37,19 @@ import {
   type LastPerformance,
 } from '../lib/workouts'
 import { createRoutine } from '../lib/routines'
+import {
+  DEFAULT_REST_SECONDS,
+  clampRest,
+  listRestPrefs,
+  setRestPref,
+} from '../lib/restPrefs'
+import { unlockAudio } from '../lib/audio'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { EntryCard } from '../components/EntryCard'
 import { RestTimer } from '../components/RestTimer'
 import { SaveRoutineModal } from '../components/SaveRoutineModal'
-
-const REST_SECONDS = 60
+import { ElapsedTimer, fmtDuration } from '../components/ElapsedTimer'
+import { SessionSummaryModal } from '../components/SessionSummaryModal'
 
 
 export function LogPage() {
@@ -57,7 +65,19 @@ export function LogPage() {
   const [loading, setLoading] = useState(true)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null)
+  const [restPrefs, setRestPrefs] = useState<Record<string, number>>({})
+  const [activeRest, setActiveRest] = useState<{
+    exerciseId: string
+    base: number
+  } | null>(null)
   const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [summary, setSummary] = useState<{
+    durationSec: number
+    exerciseCount: number
+    setCount: number
+    volume: number
+  } | null>(null)
 
   const sensors = useSensors(
     // distance 임계값 → 입력 탭/타이핑은 드래그로 오인되지 않음
@@ -100,13 +120,15 @@ export function LogPage() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [exs, ses] = await Promise.all([
+      const [exs, ses, prefs] = await Promise.all([
         listExercises(),
         getSessionByDate(profile.profile_id, today),
+        listRestPrefs(profile.profile_id),
       ])
       if (cancelled) return
       setExercises(exs)
       setSession(ses)
+      setRestPrefs(prefs)
       setLoading(false)
       // 오늘 세션에 이미 있는 운동들의 지난 기록 로드
       if (ses) ses.entries.forEach((e) => loadLast(e.exercise_id))
@@ -203,7 +225,28 @@ export function LogPage() {
     const next = !set.is_completed
     patchSetLocal(set.id, { is_completed: next })
     await updateSet(set.id, { is_completed: next })
-    if (next) setRestEndsAt(Date.now() + REST_SECONDS * 1000) // 휴식 타이머 시작
+    if (next) {
+      unlockAudio() // 사용자 제스처(탭) 안 — iOS 오디오 언락은 여기서만 가능
+      const entry = session?.entries.find((e) => e.id === set.entry_id)
+      const exerciseId = entry?.exercise_id
+      const base = exerciseId
+        ? (restPrefs[exerciseId] ?? DEFAULT_REST_SECONDS)
+        : DEFAULT_REST_SECONDS
+      setRestEndsAt(Date.now() + base * 1000)
+      setActiveRest(exerciseId ? { exerciseId, base } : null)
+    }
+  }
+
+  // 휴식 조정 = 그 운동의 다음 기본 휴식값 확정 저장 (사용자 요청 핵심 동작)
+  function adjustRest(deltaSeconds: number) {
+    setRestEndsAt((t) => (t ?? Date.now()) + deltaSeconds * 1000)
+    setActiveRest((a) => {
+      if (!a || !profile) return a
+      const newBase = clampRest(a.base + deltaSeconds)
+      setRestPrefs((m) => ({ ...m, [a.exerciseId]: newBase }))
+      setRestPref(profile.profile_id, a.exerciseId, newBase).catch(() => {})
+      return { ...a, base: newBase }
+    })
   }
 
   async function handleAddSet(entryId: string) {
@@ -277,6 +320,37 @@ export function LogPage() {
     await setSessionShared(session.id, next)
   }
 
+  async function handleComplete() {
+    if (!session) return
+    setCompleting(true)
+    try {
+      const endedAt = await endSession(session.id)
+      setSession((s) => (s ? { ...s, ended_at: endedAt } : s))
+
+      let setCount = 0
+      let volume = 0
+      for (const e of session.entries) {
+        for (const st of e.sets) {
+          if (st.reps > 0) {
+            setCount += 1
+            volume += (st.weight_kg ?? 0) * st.reps
+          }
+        }
+      }
+      const durationSec = session.started_at
+        ? (new Date(endedAt).getTime() - new Date(session.started_at).getTime()) / 1000
+        : 0
+      setSummary({
+        durationSec,
+        exerciseCount: session.entries.length,
+        setCount,
+        volume,
+      })
+    } finally {
+      setCompleting(false)
+    }
+  }
+
   // ── 렌더 ────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -301,11 +375,28 @@ export function LogPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold">오늘 운동</h1>
-            <p className="text-xs text-[var(--color-text-dim)]">{today}</p>
+            <p className="text-xs text-[var(--color-text-dim)]">
+              {today}
+              {session?.started_at && !session.ended_at && (
+                <span className="ml-2">
+                  <ElapsedTimer startedAt={session.started_at} />
+                </span>
+              )}
+              {session?.started_at && session.ended_at && (
+                <span className="ml-2 text-[var(--color-accent)]">
+                  ✅ 완료 ·{' '}
+                  {fmtDuration(
+                    (new Date(session.ended_at).getTime() -
+                      new Date(session.started_at).getTime()) /
+                      1000,
+                  )}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         {hasEntries && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <button
               onClick={() => setSaveRoutineOpen(true)}
               className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-dim)]"
@@ -323,6 +414,15 @@ export function LogPage() {
             >
               {session!.is_shared ? '공유됨 ✓' : '피드에 공유'}
             </button>
+            {!session!.ended_at && (
+              <button
+                onClick={handleComplete}
+                disabled={completing}
+                className="rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                {completing ? '완료 중…' : '운동 완료'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -391,8 +491,12 @@ export function LogPage() {
       {restEndsAt && (
         <RestTimer
           endsAt={restEndsAt}
-          onAdjust={(d) => setRestEndsAt((t) => (t ?? Date.now()) + d * 1000)}
-          onDismiss={() => setRestEndsAt(null)}
+          baseSeconds={activeRest?.base}
+          onAdjust={adjustRest}
+          onDismiss={() => {
+            setRestEndsAt(null)
+            setActiveRest(null)
+          }}
         />
       )}
 
@@ -408,6 +512,19 @@ export function LogPage() {
               name,
               session.entries.map((e) => e.exercise_id),
             )
+          }}
+        />
+      )}
+
+      {summary && (
+        <SessionSummaryModal
+          durationSec={summary.durationSec}
+          exerciseCount={summary.exerciseCount}
+          setCount={summary.setCount}
+          volume={summary.volume}
+          onClose={() => {
+            setSummary(null)
+            navigate('/')
           }}
         />
       )}

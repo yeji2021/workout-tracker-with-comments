@@ -6,7 +6,11 @@ import {
   type ReactNode,
 } from 'react'
 import type { Profile } from '../lib/types'
-import { ensureAnonSession, loadCachedProfile } from '../lib/profile'
+import {
+  ensureAnonSession,
+  loadCachedProfile,
+  restoreProfileFromSession,
+} from '../lib/profile'
 
 interface ProfileContextValue {
   profile: Profile | null
@@ -27,10 +31,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       try {
-        // 익명 세션과 캐시는 같은 localStorage에 있으므로 함께 유효하다.
+        // 익명 세션과 캐시는 같은 localStorage에 있으므로 보통 함께 유효하다.
         await ensureAnonSession()
-        const cached = loadCachedProfile()
-        if (!cancelled) setProfileState(cached)
+        let profile = loadCachedProfile()
+        // 캐시만 지워진 경우(부분 저장소 삭제, iOS ITP 등) — 세션이 살아있으면
+        // 서버에서 조용히 복구해 재온보딩을 피한다.
+        if (!profile) profile = await restoreProfileFromSession()
+        if (!cancelled) setProfileState(profile)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       } finally {

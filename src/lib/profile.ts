@@ -37,6 +37,40 @@ export async function ensureAnonSession(): Promise<void> {
   }
 }
 
+// 로컬 캐시가 지워졌어도 익명 세션이 살아있으면 내 프로필을 조용히 복구.
+// 이 세션에 연결된 프로필이 없으면 null (신규 사용자 → 온보딩으로 진행).
+export async function restoreProfileFromSession(): Promise<Profile | null> {
+  const { data, error } = await supabase.rpc('get_my_profile')
+  if (error) return null
+  if (!data) return null
+  const profile = data as Profile
+  cacheProfile(profile)
+  return profile
+}
+
+// ── 체중 (칼로리 추정용, 선택 입력) ──────────────────────────────────
+// 마이그레이션(profiles.weight_kg) 미적용 시 조용히 null로 폴백.
+export async function getMyWeightKg(profileId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('weight_kg')
+    .eq('id', profileId)
+    .single()
+  if (error) return null
+  return (data?.weight_kg as number | null) ?? null
+}
+
+export async function setMyWeightKg(
+  profileId: string,
+  weightKg: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ weight_kg: weightKg })
+    .eq('id', profileId)
+  if (error) throw error
+}
+
 // RPC 에러 코드를 한국어 메시지로
 const ERROR_MESSAGES: Record<string, string> = {
   AUTH_REQUIRED: '세션이 만료됐어요. 새로고침 후 다시 시도해주세요.',

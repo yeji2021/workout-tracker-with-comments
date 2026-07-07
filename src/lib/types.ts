@@ -38,6 +38,8 @@ export interface WorkoutSession {
   group_id: string
   date: string // YYYY-MM-DD
   is_shared: boolean
+  started_at: string | null // ISO timestamptz — 세션 최초 생성 시각(= 운동 시작)
+  ended_at: string | null // ISO timestamptz — "운동 완료" 시각
   entries: WorkoutEntry[]
 }
 

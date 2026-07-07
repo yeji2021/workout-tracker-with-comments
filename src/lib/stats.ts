@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { MUSCLE_GROUPS, type MuscleGroup } from './types'
+import { MUSCLE_GROUPS, type MuscleGroup, type WorkoutSession } from './types'
 import { todayISO } from './workouts'
 
 // ── 통계용 경량 세션 모델 ────────────────────────────────────────────
@@ -177,6 +177,34 @@ export function personalRecords(sessions: StatSession[]): PR[] {
     }
   }
   return [...best.values()].sort((a, b) => b.weight - a.weight)
+}
+
+// Epley 공식 기반 1RM 추정 (세트 상세 카드용)
+export function epley1RM(weightKg: number, reps: number): number {
+  return Math.round(weightKg * (1 + reps / 30))
+}
+
+// WorkoutSession(상세 조회 모델) → StatSession(통계 계산 모델) 변환
+export function toStatSession(session: WorkoutSession): StatSession {
+  return {
+    date: session.date,
+    entries: session.entries.map((e) => ({
+      muscle: e.exercise?.primary_muscle_group ?? null,
+      exerciseName: e.exercise?.name ?? '',
+      sets: e.sets.map((s) => ({
+        weight_kg: s.weight_kg,
+        reps: s.reps,
+        is_completed: s.is_completed,
+      })),
+    })),
+  }
+}
+
+// 단일 세션의 부위별 볼륨 — BodyHeatmap 재사용용 (기간 통계와 동일 계산기 사용)
+export function volumeByGroupForSession(
+  session: StatSession,
+): Record<MuscleGroup, number> {
+  return volumeByGroup([session], session.date, session.date)
 }
 
 // 운동한 날 수 (기간 내)
