@@ -30,12 +30,15 @@ import {
   getSessionByDate,
   listExercises,
   reorderEntries,
-  setSessionShared,
   todayISO,
   updateEntryNotes,
   updateSet,
   type LastPerformance,
 } from '../lib/workouts'
+import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
+import { detectHighlights } from '../lib/highlights'
+import { fetchAllSessions } from '../lib/stats'
+import { announcePresence, type Cheer } from '../lib/live'
 import { createRoutine } from '../lib/routines'
 import {
   DEFAULT_REST_SECONDS,
@@ -50,6 +53,8 @@ import { RestTimer } from '../components/RestTimer'
 import { SaveRoutineModal } from '../components/SaveRoutineModal'
 import { ElapsedTimer, fmtDuration } from '../components/ElapsedTimer'
 import { SessionSummaryModal } from '../components/SessionSummaryModal'
+import { ShareSheet } from '../components/ShareSheet'
+import { CheerToast } from '../components/CheerToast'
 
 
 export function LogPage() {
@@ -71,6 +76,8 @@ export function LogPage() {
     base: number
   } | null>(null)
   const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareHighlight, setShareHighlight] = useState<ShareHighlights | null>(null)
   const [completing, setCompleting] = useState(false)
   const [summary, setSummary] = useState<{
     durationSec: number
@@ -78,6 +85,22 @@ export function LogPage() {
     setCount: number
     volume: number
   } | null>(null)
+  const [incomingCheer, setIncomingCheer] = useState<Cheer | null>(null)
+
+  // 운동 중(시작~완료 사이)인 동안 내 그룹들에 "운동 중" 상태를 알리고,
+  // 친구가 보낸 응원을 수신한다. 세션이 완료/종료되면 자동으로 나간다.
+  useEffect(() => {
+    if (!profile || !session?.started_at || session.ended_at) return
+    return announcePresence(
+      profile.groups.map((g) => g.group_id),
+      {
+        profile_id: profile.profile_id,
+        nickname: profile.nickname,
+        started_at: session.started_at,
+      },
+      setIncomingCheer,
+    )
+  }, [profile, session?.started_at, session?.ended_at])
 
   const sensors = useSensors(
     // distance 임계값 → 입력 탭/타이핑은 드래그로 오인되지 않음
@@ -313,11 +336,34 @@ export function LogPage() {
     await reorderEntries(reordered.map((e) => e.id))
   }
 
-  async function toggleShare() {
+  async function openShare() {
+    if (!session || !profile) return
+    setShareHighlight(null)
+    setShareOpen(true)
+    const past = await fetchAllSessions(profile.profile_id)
+    setShareHighlight(detectHighlights(session, past))
+  }
+
+  async function confirmShare(
+    groupIds: string[],
+    message: string,
+    highlight: ShareHighlights | null,
+  ) {
     if (!session) return
-    const next = !session.is_shared
-    setSession({ ...session, is_shared: next })
-    await setSessionShared(session.id, next)
+    const before = new Set(session.shares.map((s) => s.group_id))
+    const after = new Set(groupIds)
+    const toAdd = groupIds.filter((id) => !before.has(id))
+    const toKeep = groupIds.filter((id) => before.has(id))
+    const toRemove = [...before].filter((id) => !after.has(id))
+    const toUpsert = [...toAdd, ...toKeep]
+    await Promise.all([
+      // 새로 추가되는 그룹 + 이미 공유된 그룹도 멘트/하이라이트 갱신을 위해 upsert
+      toUpsert.length > 0
+        ? shareSessionToGroups(session.id, toUpsert, message, highlight)
+        : Promise.resolve(),
+      ...toRemove.map((id) => unshareFromGroup(session.id, id)),
+    ])
+    await refreshSession()
   }
 
   async function handleComplete() {
@@ -404,15 +450,17 @@ export function LogPage() {
               루틴 저장
             </button>
             <button
-              onClick={toggleShare}
+              onClick={openShare}
               className={
                 'rounded-full px-3 py-1.5 text-xs font-semibold ' +
-                (session!.is_shared
+                (session!.shares.length > 0
                   ? 'bg-[var(--color-accent)] text-white'
                   : 'border border-[var(--color-border)] text-[var(--color-text-dim)]')
               }
             >
-              {session!.is_shared ? '공유됨 ✓' : '피드에 공유'}
+              {session!.shares.length > 0
+                ? `공유됨 ✓ (${session!.shares.length})`
+                : '피드에 공유'}
             </button>
             {!session!.ended_at && (
               <button
@@ -526,6 +574,24 @@ export function LogPage() {
             setSummary(null)
             navigate('/')
           }}
+        />
+      )}
+
+      {shareOpen && session && profile && (
+        <ShareSheet
+          groups={profile.groups}
+          currentShares={session.shares}
+          highlight={shareHighlight}
+          onClose={() => setShareOpen(false)}
+          onConfirm={confirmShare}
+        />
+      )}
+
+      {incomingCheer && (
+        <CheerToast
+          emoji={incomingCheer.emoji}
+          fromNickname={incomingCheer.from_nickname}
+          onDone={() => setIncomingCheer(null)}
         />
       )}
     </div>

@@ -26,7 +26,10 @@ export function RecoveryCodeCard({
 
       <CopyRow label="복구 코드" value={profile.recovery_code ?? ''} highlight />
       <div className="h-3" />
-      <CopyRow label="내 그룹 초대코드" value={profile.invite_code} />
+      <CopyRow
+        label="내 그룹 초대코드"
+        value={profile.groups[0]?.invite_code ?? ''}
+      />
 
       <label className="mt-8 flex items-center gap-3 rounded-lg bg-[var(--color-surface)] px-4 py-3">
         <input

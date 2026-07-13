@@ -32,9 +32,15 @@ function Gate() {
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
         <div className="text-2xl">⚠️</div>
         <p className="text-sm text-[var(--color-danger)]">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white"
+        >
+          새로고침
+        </button>
       </div>
     )
   }

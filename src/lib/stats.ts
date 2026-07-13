@@ -207,6 +207,19 @@ export function volumeByGroupForSession(
   return volumeByGroup([session], session.date, session.date)
 }
 
+// 연속 기록(스트릭) — 오늘 기록이 아직 없으면 어제부터 거꾸로 세어
+// "오늘 아직 운동 전이라 스트릭이 끊긴 것처럼 보이는" 문제를 피한다.
+export function computeStreak(dates: string[], today: string): number {
+  const set = new Set(dates)
+  let cursor = set.has(today) ? today : shiftISO(today, -1)
+  let count = 0
+  while (set.has(cursor)) {
+    count += 1
+    cursor = shiftISO(cursor, -1)
+  }
+  return count
+}
+
 // 운동한 날 수 (기간 내)
 export function workoutDayCount(
   sessions: StatSession[],

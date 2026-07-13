@@ -4,6 +4,7 @@ import { useProfile } from '../context/ProfileContext'
 import { useFeedUnread } from '../lib/feedUnread'
 import { getSessionByDate, todayISO } from '../lib/workouts'
 import {
+  computeStreak,
   fetchAllSessions,
   personalRecords,
   shiftISO,
@@ -11,6 +12,7 @@ import {
   workoutDayCount,
   type StatSession,
 } from '../lib/stats'
+import { syncStreak } from '../lib/streak'
 import { fmtVolume } from '../lib/format'
 import type { WorkoutSession } from '../lib/types'
 import { InstallPrompt } from '../components/InstallPrompt'
@@ -62,6 +64,11 @@ export function HomePage() {
       setSession(ses)
       setSessions(all)
       setLoading(false)
+      // 부팅 시 스트릭 재계산 + 저장 (그룹 피드 아바타에 표시하려면 서버에 있어야 함)
+      syncStreak(
+        profile.profile_id,
+        all.map((s) => s.date),
+      ).catch(() => {})
     })()
     return () => {
       cancelled = true
@@ -69,6 +76,10 @@ export function HomePage() {
   }, [profile, today])
 
   const todaySummary = useMemo(() => summarizeToday(session), [session])
+  const streak = useMemo(
+    () => computeStreak(sessions.map((s) => s.date), today),
+    [sessions, today],
+  )
 
   const week = useMemo(() => {
     const cmp = weekCompare(sessions)
@@ -99,11 +110,18 @@ export function HomePage() {
   return (
     <div className="px-4 py-5">
       {/* 인사 헤더 */}
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold">
-          안녕하세요, {profile?.nickname ?? ''} 👋
-        </h1>
-        <p className="text-xs text-[var(--color-text-dim)]">{fmtToday(today)}</p>
+      <div className="mb-5 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">
+            안녕하세요, {profile?.nickname ?? ''} 👋
+          </h1>
+          <p className="text-xs text-[var(--color-text-dim)]">{fmtToday(today)}</p>
+        </div>
+        {streak > 0 && (
+          <div className="flex items-center gap-1 rounded-full bg-[var(--color-surface)] px-3 py-1.5 text-sm font-bold">
+            🔥 {streak}일
+          </div>
+        )}
       </div>
 
       <InstallPrompt />
@@ -125,9 +143,9 @@ export function HomePage() {
                     ✅ 완료
                   </span>
                 )}
-                {session?.is_shared && (
+                {session && session.shares.length > 0 && (
                   <span className="text-xs text-[var(--color-accent)]">
-                    피드에 공유됨
+                    피드에 공유됨 ({session.shares.length})
                   </span>
                 )}
               </div>

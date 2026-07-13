@@ -8,14 +8,21 @@ import {
   deleteSession,
   getSessionByDate,
   listSessionsOverview,
-  setSessionShared,
   todayISO,
 } from '../lib/workouts'
-import { epley1RM, toStatSession, volumeByGroupForSession } from '../lib/stats'
+import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
+import { detectHighlights } from '../lib/highlights'
+import {
+  epley1RM,
+  fetchAllSessions,
+  toStatSession,
+  volumeByGroupForSession,
+} from '../lib/stats'
 import { fmtVolume } from '../lib/format'
 import { fmtDuration } from '../components/ElapsedTimer'
 import type { WorkoutSession } from '../lib/types'
 import { BodyHeatmap } from '../components/BodyHeatmap'
+import { ShareSheet } from '../components/ShareSheet'
 
 const MET_STRENGTH = 3.0 // 근력운동 근사 MET (1차: 상수, 향후 강도별 보정 가능)
 
@@ -37,6 +44,8 @@ export function SessionDetailPage() {
   const [weightKg, setWeightKg] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [optionsOpen, setOptionsOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareHighlight, setShareHighlight] = useState<ShareHighlights | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -154,11 +163,36 @@ export function SessionDetailPage() {
     }
   }
 
-  async function toggleShare() {
+  async function openShare() {
+    if (!session || !profile) return
+    setShareHighlight(null)
+    setShareOpen(true)
+    const past = await fetchAllSessions(profile.profile_id)
+    setShareHighlight(detectHighlights(session, past))
+  }
+
+  async function confirmShare(
+    groupIds: string[],
+    message: string,
+    highlight: ShareHighlights | null,
+  ) {
     if (!session) return
-    const next = !session.is_shared
-    setSession({ ...session, is_shared: next })
-    await setSessionShared(session.id, next)
+    const before = new Set(session.shares.map((s) => s.group_id))
+    const after = new Set(groupIds)
+    const toAdd = groupIds.filter((id) => !before.has(id))
+    const toKeep = groupIds.filter((id) => before.has(id))
+    const toRemove = [...before].filter((id) => !after.has(id))
+    const toUpsert = [...toAdd, ...toKeep]
+    await Promise.all([
+      toUpsert.length > 0
+        ? shareSessionToGroups(session.id, toUpsert, message, highlight)
+        : Promise.resolve(),
+      ...toRemove.map((id) => unshareFromGroup(session.id, id)),
+    ])
+    if (date) {
+      const refreshed = await getSessionByDate(profile!.profile_id, date)
+      setSession(refreshed)
+    }
   }
 
   async function startFromThisRecord() {
@@ -373,15 +407,17 @@ export function SessionDetailPage() {
       {/* 플로팅 공유하기 — RestTimer와 동일하게 viewport 기준 max-w-md 재중앙정렬 */}
       <div className="pointer-events-none fixed bottom-24 left-1/2 z-30 flex w-full max-w-md -translate-x-1/2 justify-end px-4">
         <button
-          onClick={toggleShare}
+          onClick={openShare}
           className={
             'pointer-events-auto flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-semibold shadow-lg ' +
-            (session.is_shared
+            (session.shares.length > 0
               ? 'bg-[var(--color-accent)] text-white'
               : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]')
           }
         >
-          {session.is_shared ? '공유됨 ✓' : '↗ 공유하기'}
+          {session.shares.length > 0
+            ? `공유됨 ✓ (${session.shares.length})`
+            : '↗ 공유하기'}
         </button>
       </div>
 
@@ -428,7 +464,7 @@ export function SessionDetailPage() {
               }}
             />
             <SheetItem icon="➤" label="운동기록 전송" onClick={handleSendShare} />
-            {session.is_shared && (
+            {session.shares.length > 0 && (
               <SheetItem
                 icon="💬"
                 label="댓글 남기기"
@@ -440,6 +476,16 @@ export function SessionDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {shareOpen && profile && (
+        <ShareSheet
+          groups={profile.groups}
+          currentShares={session.shares}
+          highlight={shareHighlight}
+          onClose={() => setShareOpen(false)}
+          onConfirm={confirmShare}
+        />
       )}
     </div>
   )

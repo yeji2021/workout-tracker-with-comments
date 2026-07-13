@@ -32,15 +32,19 @@ export interface WorkoutEntry {
   exercise?: Exercise
 }
 
+export interface SessionShareRef {
+  id: string
+  group_id: string
+}
+
 export interface WorkoutSession {
   id: string
   user_id: string
-  group_id: string
   date: string // YYYY-MM-DD
-  is_shared: boolean
   started_at: string | null // ISO timestamptz — 세션 최초 생성 시각(= 운동 시작)
   ended_at: string | null // ISO timestamptz — "운동 완료" 시각
   entries: WorkoutEntry[]
+  shares: SessionShareRef[] // 이 세션이 공유된 그룹들 (여러 그룹에 동시 공유 가능)
 }
 
 export interface RoutineEntry {
@@ -57,11 +61,17 @@ export interface Routine {
   entries: RoutineEntry[]
 }
 
+// 한 사용자가 속한 그룹 (다대다 — profile당 여러 그룹 가능)
+export interface Group {
+  group_id: string
+  invite_code: string
+  name: string
+}
+
 // 온보딩/복구 RPC 응답 및 로컬 캐시
 export interface Profile {
   profile_id: string
-  group_id: string
   nickname: string
-  invite_code: string
+  groups: Group[]
   recovery_code?: string // 발급 시 1회만 존재. 복구 후엔 없음
 }

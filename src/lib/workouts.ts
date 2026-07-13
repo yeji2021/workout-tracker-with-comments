@@ -52,10 +52,11 @@ export async function addCustomExercise(
 
 // ── 세션 조회/생성 ──────────────────────────────────────────────────
 const SESSION_SELECT =
-  'id,user_id,group_id,date,is_shared,started_at,ended_at,' +
+  'id,user_id,date,started_at,ended_at,' +
   'workout_entries(id,session_id,exercise_id,order_index,notes,' +
   'sets(id,entry_id,weight_kg,reps,is_completed,order_index),' +
-  'exercises(id,name,primary_muscle_group,secondary_muscle_group,is_default,created_by))'
+  'exercises(id,name,primary_muscle_group,secondary_muscle_group,is_default,created_by)),' +
+  'session_shares(id,group_id)'
 
 // PostgREST 중첩 응답을 도메인 타입으로 정리 (정렬 포함)
 function mapSession(row: Record<string, unknown>): WorkoutSession {
@@ -76,15 +77,19 @@ function mapSession(row: Record<string, unknown>): WorkoutSession {
     })
     .sort((a, b) => a.order_index - b.order_index)
 
+  const sharesRaw = (row.session_shares as Record<string, unknown>[]) ?? []
+
   return {
     id: row.id as string,
     user_id: row.user_id as string,
-    group_id: row.group_id as string,
     date: row.date as string,
-    is_shared: row.is_shared as boolean,
     started_at: (row.started_at as string | null) ?? null,
     ended_at: (row.ended_at as string | null) ?? null,
     entries,
+    shares: sharesRaw.map((s) => ({
+      id: s.id as string,
+      group_id: s.group_id as string,
+    })),
   }
 }
 
@@ -110,7 +115,6 @@ export async function createSession(
     .from('workout_sessions')
     .insert({
       user_id: profile.profile_id,
-      group_id: profile.group_id,
       date,
       started_at: new Date().toISOString(), // 세션 최초 생성 = 운동 시작
     })
@@ -118,17 +122,6 @@ export async function createSession(
     .single()
   if (error) throw error
   return mapSession(data as unknown as Record<string, unknown>)
-}
-
-export async function setSessionShared(
-  sessionId: string,
-  shared: boolean,
-): Promise<void> {
-  const { error } = await supabase
-    .from('workout_sessions')
-    .update({ is_shared: shared })
-    .eq('id', sessionId)
-  if (error) throw error
 }
 
 // "운동 완료" — 종료 시각을 기록해 소요시간/칼로리 계산의 기준이 된다.
@@ -154,7 +147,6 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export interface SessionOverview {
   id: string
   date: string
-  is_shared: boolean
   started_at: string | null
   ended_at: string | null
   exerciseCount: number
@@ -169,7 +161,7 @@ export async function listSessionsOverview(
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(
-      'id,date,is_shared,started_at,ended_at,' +
+      'id,date,started_at,ended_at,' +
         'workout_entries(id,sets(weight_kg,reps,is_completed))',
     )
     .eq('user_id', profileId)
@@ -178,7 +170,6 @@ export async function listSessionsOverview(
   const rows = (data ?? []) as unknown as {
     id: string
     date: string
-    is_shared: boolean
     started_at: string | null
     ended_at: string | null
     workout_entries: {
@@ -200,7 +191,6 @@ export async function listSessionsOverview(
       return {
         id: row.id,
         date: row.date,
-        is_shared: row.is_shared,
         started_at: row.started_at,
         ended_at: row.ended_at,
         exerciseCount: row.workout_entries.length,

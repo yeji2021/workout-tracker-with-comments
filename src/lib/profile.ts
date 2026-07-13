@@ -1,7 +1,29 @@
 import { supabase } from './supabase'
-import type { Profile } from './types'
+import type { Group, Profile } from './types'
 
 const CACHE_KEY = 'wt_profile'
+
+// 모바일/PWA에서 supabase.auth.getSession()이 Web Locks 잠금을 기다리다
+// 영구히 멈추는 경우가 있어(특히 iOS standalone), 부트스트랩이 로더에
+// 갇히지 않도록 네트워크/auth 호출에 타임아웃을 씌운다.
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`${label} 시간이 초과됐어요. 네트워크 상태를 확인하고 새로고침해주세요.`)),
+      ms,
+    )
+    p.then(
+      (v) => {
+        clearTimeout(t)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(t)
+        reject(e)
+      },
+    )
+  })
+}
 
 // ── 로컬 캐시 (Supabase 익명 세션과 함께 localStorage에 상주) ───────────
 // 세션과 캐시는 같은 localStorage에 있어 함께 살고 함께 지워진다.
@@ -24,9 +46,13 @@ export function clearCachedProfile() {
 
 // ── 익명 세션 보장 ──────────────────────────────────────────────────
 export async function ensureAnonSession(): Promise<void> {
-  const { data } = await supabase.auth.getSession()
+  const { data } = await withTimeout(supabase.auth.getSession(), 8000, '세션 확인')
   if (!data.session) {
-    const { error } = await supabase.auth.signInAnonymously()
+    const { error } = await withTimeout(
+      supabase.auth.signInAnonymously(),
+      8000,
+      '익명 로그인',
+    )
     if (error) {
       throw new Error(
         '익명 로그인에 실패했어요. Supabase에서 Anonymous sign-ins이 켜져 있는지 확인해주세요. (' +
@@ -40,7 +66,11 @@ export async function ensureAnonSession(): Promise<void> {
 // 로컬 캐시가 지워졌어도 익명 세션이 살아있으면 내 프로필을 조용히 복구.
 // 이 세션에 연결된 프로필이 없으면 null (신규 사용자 → 온보딩으로 진행).
 export async function restoreProfileFromSession(): Promise<Profile | null> {
-  const { data, error } = await supabase.rpc('get_my_profile')
+  const { data, error } = await withTimeout(
+    supabase.rpc('get_my_profile'),
+    8000,
+    '프로필 복구',
+  )
   if (error) return null
   if (!data) return null
   const profile = data as Profile
@@ -79,6 +109,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   NICKNAME_TAKEN: '이미 사용 중인 닉네임이에요. 다른 닉네임을 써주세요.',
   INVALID_RECOVERY_CODE: '복구 코드를 찾을 수 없어요. 코드를 확인해주세요.',
   ALREADY_LINKED: '이 기기는 이미 다른 프로필에 연결돼 있어요.',
+  ALREADY_MEMBER: '이미 참여 중인 그룹이에요.',
+  LAST_GROUP: '마지막 남은 그룹은 나갈 수 없어요.',
+  INVALID_NAME: '그룹 이름을 입력해주세요.',
 }
 
 function humanizeRpcError(message: string): string {
@@ -124,4 +157,32 @@ export async function recoverProfile(recoveryCode: string): Promise<Profile> {
   const profile = data as Profile
   cacheProfile(profile)
   return profile
+}
+
+// ── 멀티 그룹 (이미 프로필이 있는 사용자가 그룹을 추가/탈퇴) ─────────────
+export async function createGroup(name: string): Promise<Group> {
+  const { data, error } = await supabase.rpc('create_group', { p_name: name })
+  if (error) throw new Error(humanizeRpcError(error.message))
+  return data as Group
+}
+
+export async function joinGroupExisting(inviteCode: string): Promise<Group> {
+  const { data, error } = await supabase.rpc('join_group_existing', {
+    p_invite_code: inviteCode,
+  })
+  if (error) throw new Error(humanizeRpcError(error.message))
+  return data as Group
+}
+
+export async function leaveGroup(groupId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_group', { p_group_id: groupId })
+  if (error) throw new Error(humanizeRpcError(error.message))
+}
+
+export async function renameGroup(groupId: string, name: string): Promise<void> {
+  const { error } = await supabase
+    .from('groups')
+    .update({ name: name.trim() })
+    .eq('id', groupId)
+  if (error) throw error
 }

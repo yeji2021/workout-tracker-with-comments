@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import { FEED_EMOJIS, type FeedItem } from '../lib/feed'
 import { fmtVolume } from '../lib/format'
+import { BodyHeatmap } from './BodyHeatmap'
+import { StreakAvatar } from './StreakAvatar'
+
+const VISIBLE_EXERCISES = 4
 
 function relativeDate(iso: string, today: string): string {
   if (iso === today) return '오늘'
@@ -11,6 +15,7 @@ export function FeedCard({
   item,
   myProfileId,
   today,
+  showGroupBadge,
   onToggleReaction,
   onAddComment,
   onDeleteComment,
@@ -18,6 +23,7 @@ export function FeedCard({
   item: FeedItem
   myProfileId: string
   today: string
+  showGroupBadge: boolean
   onToggleReaction: (emoji: string) => void
   onAddComment: (text: string) => Promise<void>
   onDeleteComment: (commentId: string) => void
@@ -25,6 +31,7 @@ export function FeedCard({
   const [commentText, setCommentText] = useState('')
   const [sending, setSending] = useState(false)
   const [showComments, setShowComments] = useState(false)
+  const [showAllExercises, setShowAllExercises] = useState(false)
 
   // 이모지별 집계 + 내가 눌렀는지
   const reactionAgg = useMemo(() => {
@@ -55,9 +62,7 @@ export function FeedCard({
     <div className="mb-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       {/* 헤더 */}
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-sm font-bold">
-          {item.nickname.slice(0, 1)}
-        </div>
+        <StreakAvatar nickname={item.nickname} streak={item.streak} />
         <div className="flex-1">
           <div className="text-sm font-semibold">
             {item.nickname}
@@ -69,6 +74,11 @@ export function FeedCard({
           </div>
           <div className="text-xs text-[var(--color-text-dim)]">
             {relativeDate(item.date, today)}
+            {showGroupBadge && (
+              <span className="ml-1.5 rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px]">
+                {item.group_name}
+              </span>
+            )}
           </div>
         </div>
         {item.volume > 0 && (
@@ -81,25 +91,52 @@ export function FeedCard({
         )}
       </div>
 
-      {/* 운동 요약 */}
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {item.exercises.length === 0 ? (
-          <span className="text-xs text-[var(--color-text-dim)]">운동 없음</span>
-        ) : (
-          item.exercises.map((e, i) => (
-            <span
-              key={i}
-              className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-1 text-xs"
-            >
-              {e.name}
-              {e.setCount > 0 && (
-                <span className="text-[var(--color-text-dim)]">
-                  {' '}
-                  {e.setCount}세트
-                </span>
+      {/* 자동 하이라이트 타이틀 + 멘트 */}
+      {item.highlights?.title && (
+        <div className="mb-1.5 text-sm font-bold">{item.highlights.title}</div>
+      )}
+      {item.message && (
+        <div className="mb-2 text-sm italic text-[var(--color-text-dim)]">
+          “{item.message}”
+        </div>
+      )}
+
+      {/* 운동 요약 (좌: 세로 리스트) + 미니 바디 히트맵 (우: 고정폭) */}
+      <div className="mb-3 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {item.exercises.length === 0 ? (
+            <span className="text-xs text-[var(--color-text-dim)]">운동 없음</span>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {(showAllExercises
+                ? item.exercises
+                : item.exercises.slice(0, VISIBLE_EXERCISES)
+              ).map((e, i) => (
+                <li key={i} className="truncate text-xs">
+                  {e.name}
+                  {e.setCount > 0 && (
+                    <span className="text-[var(--color-text-dim)]">
+                      {' '}
+                      {e.setCount}세트
+                    </span>
+                  )}
+                </li>
+              ))}
+              {!showAllExercises && item.exercises.length > VISIBLE_EXERCISES && (
+                <li>
+                  <button
+                    onClick={() => setShowAllExercises(true)}
+                    className="text-xs text-[var(--color-text-dim)] underline"
+                  >
+                    +{item.exercises.length - VISIBLE_EXERCISES}개 더보기
+                  </button>
+                </li>
               )}
-            </span>
-          ))
+            </ul>
+          )}
+        </div>
+        {item.volume > 0 && (
+          <BodyHeatmap data={item.muscleVolume} variant="mini" />
         )}
       </div>
 

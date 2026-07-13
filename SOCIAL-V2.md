@@ -1,5 +1,9 @@
 # 소셜 공유 기능 v2 설계 (Phase 8)
 
+> **구현 완료** (2026-07-08). 8-A~8-E 프론트엔드/스키마 코드 전부 작성됨.
+> **DB 마이그레이션 실행 필요**: `scripts/03-multi-group.sql` → `scripts/04-streak.sql` 순서로
+> Supabase 대시보드 SQL Editor에서 실행해야 실제로 동작함 (이 환경에는 DB 실행 권한 없음).
+
 > 2026-07-07 확정. 피드 재미 요소(자동 타이틀/멘트/히트맵/스트릭/리캡/라이브) + **멀티 그룹 구조 개편**을 하나의 일관된 설계로 통합.
 > 전제: IMPROVEMENTS.md의 Phase 7 중 2번(운동 시작/완료, `started_at/ended_at`)은 스키마 반영 완료 상태.
 
@@ -225,34 +229,34 @@ CREATE TABLE session_shares (
 의존성: **8-A가 전부의 전제** (공유 모델이 바뀌므로 B~D를 먼저 하면 재작업). C는 B와 병행 가능. E는 독립적(7-2 배포만 전제).
 
 ### 8-A. 멀티 그룹 기반 ★필수 선행
-- [ ] `scripts/03-social-v2.sql`: `group_members` + `session_shares` + reactions/comments `share_id` 전환 + 백필 + RLS/헬퍼/RPC 교체 + Realtime publication
-- [ ] `types.ts`/`profile.ts`: Profile에 `groups[]`, ProfileContext 다중 그룹 반영
-- [ ] `feed.ts`: share 기준 조회/리액션/댓글로 전환
-- [ ] FeedPage 그룹 탭 바 + 그룹 관리 시트(만들기/참여/초대코드/탈퇴)
-- [ ] `feedUnread.ts` 그룹별 last-seen
-- [ ] 온보딩 문구 조정 (그룹은 나중에 더 만들 수 있음을 암시)
+- [x] `scripts/03-social-v2.sql`: `group_members` + `session_shares` + reactions/comments `share_id` 전환 + 백필 + RLS/헬퍼/RPC 교체 + Realtime publication
+- [x] `types.ts`/`profile.ts`: Profile에 `groups[]`, ProfileContext 다중 그룹 반영
+- [x] `feed.ts`: share 기준 조회/리액션/댓글로 전환
+- [x] FeedPage 그룹 탭 바 + 그룹 관리 시트(만들기/참여/초대코드/탈퇴)
+- [x] `feedUnread.ts` 그룹별 last-seen
+- [x] 온보딩 문구 조정 (그룹은 나중에 더 만들 수 있음을 암시)
 
 ### 8-B. 공유 시트 + 멘트 + 자동 하이라이트
-- [ ] `highlights.ts`: PR/새운동/tired 판정 + 타이틀 생성 (내 과거 기록만 사용)
-- [ ] `ShareSheet` 컴포넌트: 그룹 다중 선택, 하이라이트 칩 토글, 멘트 입력, 공유/취소
-- [ ] LogPage 완료 요약·세션 상세에 진입점 연결
-- [ ] FeedCard에 타이틀/멘트 렌더링
+- [x] `highlights.ts`: PR/새운동/tired 판정 + 타이틀 생성 (내 과거 기록만 사용)
+- [x] `ShareSheet` 컴포넌트: 그룹 다중 선택, 하이라이트 칩 토글, 멘트 입력, 공유/취소
+- [x] LogPage 완료 요약·세션 상세에 진입점 연결
+- [x] FeedCard에 타이틀/멘트 렌더링
 
 ### 8-C. FeedCard 레이아웃 v2
-- [ ] `BodyHeatmap` `variant='mini'` (실루엣 1개, 96px, 등 근사 표현)
-- [ ] 카드 본문 2컬럼: 운동 세로 리스트(4줄+더보기) | 미니 히트맵
-- [ ] 부위별 볼륨 집계 유틸 연결
+- [x] `BodyHeatmap` `variant='mini'` (실루엣 1개, 96px, 등 근사 표현)
+- [x] 카드 본문 2컬럼: 운동 세로 리스트(4줄+더보기) | 미니 히트맵
+- [x] 부위별 볼륨 집계 유틸 연결
 
 ### 8-D. 스트릭 + 주간 리캡
-- [ ] `profiles.streak_count/streak_date` + GRANT (03 sql에 포함)
-- [ ] 스트릭 재계산 유틸 + endSession/부팅 훅
-- [ ] `StreakAvatar` (링 + 🔥N) — 피드/홈 공용
-- [ ] `WeeklyRecapCard`: 그룹 탭별 지난주 집계 + 재미 환산 + 왕들 + PR 수
+- [x] `profiles.streak_count/streak_date` + GRANT (03 sql에 포함)
+- [x] 스트릭 재계산 유틸 + endSession/부팅 훅
+- [x] `StreakAvatar` (링 + 🔥N) — 피드/홈 공용
+- [x] `WeeklyRecapCard`: 그룹 탭별 지난주 집계 + 재미 환산 + 왕들 + PR 수
 
 ### 8-E. 라이브 + 응원
-- [ ] presence 유틸 (`live.ts`): 채널 join/track/구독
-- [ ] LogPage: 활성 세션 동안 presence + cheer 수신(플로팅 이모지)
-- [ ] FeedPage: 라이브 바 + 응원 보내기 피커
+- [x] presence 유틸 (`live.ts`): 채널 join/track/구독
+- [x] LogPage: 활성 세션 동안 presence + cheer 수신(플로팅 이모지)
+- [x] FeedPage: 라이브 바 + 응원 보내기 피커
 
 ### 열어둔 것 (v2 이후)
 - "전체" 탭에서 중복 share 세션 단위 접기
