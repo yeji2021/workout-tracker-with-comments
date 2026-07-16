@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { WorkoutEntry, WorkoutSet } from '../lib/types'
@@ -147,6 +148,35 @@ function SetRow({
     const n = parseInt(v, 10)
     return Number.isNaN(n) ? 0 : Math.max(0, n)
   }
+
+  // 소수점 입력 중("12.", "12.50") 값이 즉시 숫자로 반올림되어 '.'이
+  // 지워지는 문제를 막기 위해 입력창 텍스트를 별도로 들고 있는다.
+  // set.weight_kg가 우리 입력이 아닌 외부(자동 채우기 등)에서 바뀐 경우에만 동기화한다.
+  const [weightText, setWeightText] = useState(() =>
+    set.weight_kg == null ? '' : String(set.weight_kg),
+  )
+  const lastEmitted = useRef(set.weight_kg)
+  useEffect(() => {
+    if (set.weight_kg !== lastEmitted.current) {
+      lastEmitted.current = set.weight_kg
+      setWeightText(set.weight_kg == null ? '' : String(set.weight_kg))
+    }
+  }, [set.weight_kg])
+
+  function handleWeightChange(v: string) {
+    if (!/^\d*\.?\d*$/.test(v)) return
+    setWeightText(v)
+    const parsed = parseWeight(v)
+    lastEmitted.current = parsed
+    onChange({ weight_kg: parsed })
+  }
+
+  function handleWeightBlur() {
+    const parsed = parseWeight(weightText)
+    setWeightText(parsed == null ? '' : String(parsed))
+    onPersist({ weight_kg: parsed })
+  }
+
   return (
     <div
       data-set-id={set.id}
@@ -160,14 +190,11 @@ function SetRow({
       </span>
       <input
         inputMode="decimal"
-        value={
-          set.weight_kg == null || Number.isNaN(set.weight_kg)
-            ? ''
-            : set.weight_kg
-        }
+        value={weightText}
         placeholder={prev?.weight_kg != null ? String(prev.weight_kg) : '0'}
-        onChange={(e) => onChange({ weight_kg: parseWeight(e.target.value) })}
-        onBlur={(e) => onPersist({ weight_kg: parseWeight(e.target.value) })}
+        onChange={(e) => handleWeightChange(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={handleWeightBlur}
         className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-1.5 text-center text-sm outline-none focus:border-[var(--color-accent)]"
       />
       <input
@@ -175,6 +202,7 @@ function SetRow({
         value={set.reps || ''}
         placeholder={prev?.reps != null ? String(prev.reps) : '0'}
         onChange={(e) => onChange({ reps: parseReps(e.target.value) })}
+        onFocus={(e) => e.target.select()}
         onBlur={(e) => onPersist({ reps: parseReps(e.target.value) })}
         className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-1.5 text-center text-sm outline-none focus:border-[var(--color-accent)]"
       />

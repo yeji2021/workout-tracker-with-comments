@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { FEED_EMOJIS } from '../lib/feed'
-import { joinLiveBar, type LiveMember } from '../lib/live'
+import type { LiveMember } from '../lib/live'
+import { useLive } from '../context/LiveContext'
 import { ElapsedTimer } from './ElapsedTimer'
 
 // 현재 그룹에서 운동 중인 멤버 가로 스크롤 바 + 탭하면 응원 이모지 보내기.
-// 응원은 목록 구독에 쓰는 채널을 그대로 재사용해 보낸다 (topic 중복 구독 방지).
+// 목록/응원 모두 LiveContext의 그룹 채널을 공유한다 (topic 중복 구독 방지).
 export function LiveBar({
   groupId,
   myProfileId,
@@ -14,27 +15,17 @@ export function LiveBar({
   myProfileId: string
   myNickname: string
 }) {
-  const [members, setMembers] = useState<LiveMember[]>([])
+  const { membersByGroup, sendCheer } = useLive()
   const [target, setTarget] = useState<LiveMember | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
-  const liveRef = useRef<ReturnType<typeof joinLiveBar> | null>(null)
 
-  useEffect(() => {
-    const live = joinLiveBar(groupId, setMembers)
-    liveRef.current = live
-    return () => {
-      live.leave()
-      liveRef.current = null
-      setMembers([])
-    }
-  }, [groupId])
-
+  const members = membersByGroup[groupId] ?? []
   const others = members.filter((m) => m.profile_id !== myProfileId)
   if (others.length === 0) return null
 
   function cheer(emoji: string) {
     if (!target) return
-    liveRef.current?.sendCheer({
+    sendCheer(groupId, {
       to: target.profile_id,
       from_nickname: myNickname,
       emoji,

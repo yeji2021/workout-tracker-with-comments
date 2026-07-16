@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useProfile } from '../context/ProfileContext'
 import { useFeedUnread } from '../lib/feedUnread'
+import { WorkoutStartToast } from './WorkoutStartToast'
 
 interface Tab {
   to: string
@@ -30,6 +31,9 @@ export function AppLayout() {
       >
         <Outlet />
       </main>
+
+      {/* 그룹 멤버 운동 시작 팝업 — 어느 탭에서든 표시 */}
+      <WorkoutStartToast />
 
       {/* 하단 탭바 (모바일 앱 스타일, safe-area 대응) */}
       <nav

@@ -38,7 +38,8 @@ import {
 import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
 import { detectHighlights } from '../lib/highlights'
 import { fetchAllSessions } from '../lib/stats'
-import { announcePresence, type Cheer } from '../lib/live'
+import { type Cheer } from '../lib/live'
+import { useLive } from '../context/LiveContext'
 import { createRoutine } from '../lib/routines'
 import {
   DEFAULT_REST_SECONDS,
@@ -89,18 +90,28 @@ export function LogPage() {
 
   // 운동 중(시작~완료 사이)인 동안 내 그룹들에 "운동 중" 상태를 알리고,
   // 친구가 보낸 응원을 수신한다. 세션이 완료/종료되면 자동으로 나간다.
+  // 채널은 LiveContext가 관리하므로 여기서는 track/untrack만 한다.
+  const { trackWorkout, untrackWorkout, onCheer } = useLive()
   useEffect(() => {
     if (!profile || !session?.started_at || session.ended_at) return
-    return announcePresence(
-      profile.groups.map((g) => g.group_id),
-      {
-        profile_id: profile.profile_id,
-        nickname: profile.nickname,
-        started_at: session.started_at,
-      },
-      setIncomingCheer,
-    )
-  }, [profile, session?.started_at, session?.ended_at])
+    const offCheer = onCheer(setIncomingCheer)
+    trackWorkout({
+      profile_id: profile.profile_id,
+      nickname: profile.nickname,
+      started_at: session.started_at,
+    })
+    return () => {
+      offCheer()
+      untrackWorkout()
+    }
+  }, [
+    profile,
+    session?.started_at,
+    session?.ended_at,
+    trackWorkout,
+    untrackWorkout,
+    onCheer,
+  ])
 
   const sensors = useSensors(
     // distance 임계값 → 입력 탭/타이핑은 드래그로 오인되지 않음
@@ -176,8 +187,24 @@ export function LogPage() {
     await addEntry(ses.id, exercise.id, ses.entries.length)
     setPickerOpen(false)
     pendingScroll.current = { type: 'bottom' } // 새 운동이 보이도록 아래로 스크롤
+
+    const perf = await getLastPerformance(profile.profile_id, exercise.id, today)
+    setLastByEx((m) => ({ ...m, [exercise.id]: perf }))
+
+    // 지난 기록이 있으면 세트 개수와 값을 그대로 복사해 채워둔다
+    if (perf && perf.sets.length > 0) {
+      const latest = await getSessionByDate(profile.profile_id, today)
+      const newEntry = latest?.entries.find(
+        (e) => e.exercise_id === exercise.id && e.sets.length === 0,
+      )
+      if (newEntry) {
+        for (let i = 0; i < perf.sets.length; i++) {
+          await addSet(newEntry.id, perf.sets[i].weight_kg, perf.sets[i].reps, i)
+        }
+      }
+    }
+
     await refreshSession()
-    loadLast(exercise.id)
   }
 
   // ── 세트 편집 ──────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { FeedPage } from './pages/FeedPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SessionDetailPage } from './pages/SessionDetailPage'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
+import { LiveProvider } from './context/LiveContext'
 import { OnboardingPage } from './pages/OnboardingPage'
 
 export default function App() {
@@ -50,18 +51,20 @@ function Gate() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="log" element={<LogPage />} />
-          <Route path="history" element={<HistoryPage />} />
-          <Route path="session/:date" element={<SessionDetailPage />} />
-          <Route path="routines" element={<RoutinesPage />} />
-          <Route path="stats" element={<StatsPage />} />
-          <Route path="feed" element={<FeedPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <LiveProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="log" element={<LogPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="session/:date" element={<SessionDetailPage />} />
+            <Route path="routines" element={<RoutinesPage />} />
+            <Route path="stats" element={<StatsPage />} />
+            <Route path="feed" element={<FeedPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </LiveProvider>
   )
 }
