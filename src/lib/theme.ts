@@ -1,11 +1,12 @@
 // 테마 메타데이터.
-// 실제 색 값은 src/index.css 의 :root[data-theme='...'] 블록에 있고,
-// 여기서는 설정 화면 카드 렌더링 + PWA theme-color 갱신에 쓰는 정보만 둔다.
+// 프리셋 색 값은 src/index.css 의 :root[data-theme='...'] 블록에 있고,
+// 커스텀 테마는 CustomPalette(아래) 를 <html> 인라인 변수로 주입한다.
 
-export type ThemeId = 'dark' | 'light' | 'rilakkuma'
+// 'custom' = 사진에서 만든 사용자 테마
+export type ThemeId = 'dark' | 'light' | 'rilakkuma' | 'custom'
 
 export interface ThemeMeta {
-  id: ThemeId
+  id: Exclude<ThemeId, 'custom'>
   label: string
   emoji: string
   // 카드 미리보기용 스와치 (배경 / 카드 / 강조 / 글자)
@@ -38,9 +39,40 @@ export const THEMES: ThemeMeta[] = [
   },
 ]
 
+// 하나의 테마를 구성하는 모든 CSS 변수 (프리셋/커스텀 공통).
+// 커스텀 팔레트는 이 키들을 그대로 <html> 인라인 스타일로 주입한다.
+export const THEME_VARS = [
+  '--color-bg',
+  '--color-surface',
+  '--color-surface-2',
+  '--color-border',
+  '--color-accent',
+  '--color-accent-soft',
+  '--color-text',
+  '--color-text-dim',
+  '--color-danger',
+  '--color-success',
+  '--color-muscle-1',
+  '--color-muscle-2',
+  '--color-muscle-3',
+  '--color-muscle-4',
+  '--color-muscle-5',
+  '--color-muscle-6',
+] as const
+
+export type ThemeVar = (typeof THEME_VARS)[number]
+export type CustomPalette = Record<ThemeVar, string>
+
 export const DEFAULT_THEME: ThemeId = 'dark'
 export const THEME_STORAGE_KEY = 'wt-theme'
+export const CUSTOM_PALETTE_KEY = 'wt-custom-palette'
 
 export function isThemeId(v: unknown): v is ThemeId {
-  return v === 'dark' || v === 'light' || v === 'rilakkuma'
+  return v === 'dark' || v === 'light' || v === 'rilakkuma' || v === 'custom'
+}
+
+export function isCustomPalette(v: unknown): v is CustomPalette {
+  if (!v || typeof v !== 'object') return false
+  const obj = v as Record<string, unknown>
+  return THEME_VARS.every((k) => typeof obj[k] === 'string')
 }

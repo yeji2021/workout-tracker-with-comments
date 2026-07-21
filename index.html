@@ -13,12 +13,22 @@
     <script>
       (function () {
         try {
+          var el = document.documentElement
+          var m = document.querySelector('meta[name="theme-color"]')
           var t = localStorage.getItem('wt-theme')
           if (t === 'dark' || t === 'light' || t === 'rilakkuma') {
-            document.documentElement.dataset.theme = t
+            el.dataset.theme = t
             var c = { dark: '#0b0d10', light: '#f6f7f9', rilakkuma: '#f2e2c9' }[t]
-            var m = document.querySelector('meta[name="theme-color"]')
             if (m && c) m.setAttribute('content', c)
+          } else if (t === 'custom') {
+            var p = JSON.parse(localStorage.getItem('wt-custom-palette') || 'null')
+            if (p && p['--color-bg']) {
+              el.dataset.theme = 'custom'
+              for (var k in p) {
+                if (k.indexOf('--color-') === 0) el.style.setProperty(k, p[k])
+              }
+              if (m) m.setAttribute('content', p['--color-bg'])
+            }
           }
         } catch (e) {}
       })()
