@@ -48,6 +48,11 @@ import {
   setRestPref,
 } from '../lib/restPrefs'
 import { unlockAudio } from '../lib/audio'
+import {
+  cancelRestNotification,
+  ensureNotifyPermission,
+  scheduleRestNotification,
+} from '../lib/notify'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { EntryCard } from '../components/EntryCard'
 import { RestTimer } from '../components/RestTimer'
@@ -277,19 +282,28 @@ export function LogPage() {
     await updateSet(set.id, { is_completed: next })
     if (next) {
       unlockAudio() // 사용자 제스처(탭) 안 — iOS 오디오 언락은 여기서만 가능
+      ensureNotifyPermission() // 마찬가지로 제스처 안에서만 권한 프롬프트가 뜬다
       const entry = session?.entries.find((e) => e.id === set.entry_id)
       const exerciseId = entry?.exercise_id
       const base = exerciseId
         ? (restPrefs[exerciseId] ?? DEFAULT_REST_SECONDS)
         : DEFAULT_REST_SECONDS
-      setRestEndsAt(Date.now() + base * 1000)
+      const endsAt = Date.now() + base * 1000
+      setRestEndsAt(endsAt)
       setActiveRest(exerciseId ? { exerciseId, base } : null)
+      const exerciseName = exercises.find((e) => e.id === exerciseId)?.name
+      scheduleRestNotification(endsAt, exerciseName)
     }
   }
 
   // 휴식 조정 = 그 운동의 다음 기본 휴식값 확정 저장 (사용자 요청 핵심 동작)
   function adjustRest(deltaSeconds: number) {
-    setRestEndsAt((t) => (t ?? Date.now()) + deltaSeconds * 1000)
+    setRestEndsAt((t) => {
+      const next = (t ?? Date.now()) + deltaSeconds * 1000
+      const exerciseName = exercises.find((e) => e.id === activeRest?.exerciseId)?.name
+      scheduleRestNotification(next, exerciseName)
+      return next
+    })
     setActiveRest((a) => {
       if (!a || !profile) return a
       const newBase = clampRest(a.base + deltaSeconds)
@@ -569,6 +583,7 @@ export function LogPage() {
           baseSeconds={activeRest?.base}
           onAdjust={adjustRest}
           onDismiss={() => {
+            cancelRestNotification()
             setRestEndsAt(null)
             setActiveRest(null)
           }}
