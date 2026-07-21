@@ -9,7 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 새 버전 감지 시 자동 새로고침 대신 사용자가 직접 확인하도록(UpdateToast) prompt 모드 사용
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '운동 트래커',
