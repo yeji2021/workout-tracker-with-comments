@@ -9,13 +9,17 @@ import { HistoryPage } from './pages/HistoryPage'
 import { SessionDetailPage } from './pages/SessionDetailPage'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
 import { LiveProvider } from './context/LiveContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { OnboardingPage } from './pages/OnboardingPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 export default function App() {
   return (
-    <ProfileProvider>
-      <Gate />
-    </ProfileProvider>
+    <ThemeProvider>
+      <ProfileProvider>
+        <Gate />
+      </ProfileProvider>
+    </ThemeProvider>
   )
 }
 
@@ -62,6 +66,7 @@ function Gate() {
             <Route path="routines" element={<RoutinesPage />} />
             <Route path="stats" element={<StatsPage />} />
             <Route path="feed" element={<FeedPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -9,6 +9,20 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="theme-color" content="#0b0d10" />
+    <!-- FOUC 방지: 첫 페인트 전에 저장된 테마를 적용 (theme-color 메타 뒤에 위치) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('wt-theme')
+          if (t === 'dark' || t === 'light' || t === 'rilakkuma') {
+            document.documentElement.dataset.theme = t
+            var c = { dark: '#0b0d10', light: '#f6f7f9', rilakkuma: '#f2e2c9' }[t]
+            var m = document.querySelector('meta[name="theme-color"]')
+            if (m && c) m.setAttribute('content', c)
+          }
+        } catch (e) {}
+      })()
+    </script>
     <!-- iOS PWA "홈 화면에 추가" 대응 -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 
 /* ── Design tokens ───────────────────────────────────────── */
+/* @theme 는 Tailwind 유틸 생성 + 기본(다크) 값을 정의한다.
+   테마 전환은 <html data-theme="..."> 로 아래 오버라이드 블록이 이긴다.
+   컴포넌트는 모두 var(--color-*) 만 쓰므로 여기 값만 바뀌면 앱 전체가 리테마된다. */
 @theme {
   --color-bg: #0b0d10;
   --color-surface: #15181d;
@@ -12,6 +15,75 @@
   --color-text-dim: #9aa0aa;
   --color-danger: #ff5a5a;
   --color-success: #35c07a;
+  /* 부위별 색 (1가슴 2등 3어깨 4하체 5팔 6코어) — 바 차트 + 바디 히트맵 공용 */
+  --color-muscle-1: #4f7cff;
+  --color-muscle-2: #35c07a;
+  --color-muscle-3: #f0a63a;
+  --color-muscle-4: #e0574f;
+  --color-muscle-5: #9b6cff;
+  --color-muscle-6: #3ac0c0;
+}
+
+/* 다크 (기본과 동일 — 명시적으로 선택했을 때) */
+:root[data-theme='dark'] {
+  --color-bg: #0b0d10;
+  --color-surface: #15181d;
+  --color-surface-2: #1d2127;
+  --color-border: #272b33;
+  --color-accent: #4f7cff;
+  --color-accent-soft: #2a3556;
+  --color-text: #e8eaed;
+  --color-text-dim: #9aa0aa;
+  --color-danger: #ff5a5a;
+  --color-success: #35c07a;
+  --color-muscle-1: #4f7cff;
+  --color-muscle-2: #35c07a;
+  --color-muscle-3: #f0a63a;
+  --color-muscle-4: #e0574f;
+  --color-muscle-5: #9b6cff;
+  --color-muscle-6: #3ac0c0;
+}
+
+/* 라이트 */
+:root[data-theme='light'] {
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef0f3;
+  --color-border: #dfe3e8;
+  --color-accent: #3b6ef5;
+  --color-accent-soft: #dbe5ff;
+  --color-text: #1a1d22;
+  --color-text-dim: #667085;
+  --color-danger: #e5484d;
+  --color-success: #2f9e63;
+  /* 라이트에선 채도 높은 색이 흰 배경에 잘 보여 다크와 동일 세트 사용 */
+  --color-muscle-1: #3b6ef5;
+  --color-muscle-2: #2f9e63;
+  --color-muscle-3: #e08a1e;
+  --color-muscle-4: #dc4a44;
+  --color-muscle-5: #8455e6;
+  --color-muscle-6: #1f9ea0;
+}
+
+/* 리락쿠마 — 크림탄 배경 · 곰 브라운 · 쿠션 옐로우 */
+:root[data-theme='rilakkuma'] {
+  --color-bg: #f2e2c9;
+  --color-surface: #fbf3e6;
+  --color-surface-2: #ecd7b7;
+  --color-border: #ddc39c;
+  --color-accent: #a86a34;
+  --color-accent-soft: #f6e0a8;
+  --color-text: #4a3524;
+  --color-text-dim: #967a58;
+  --color-danger: #cf5b4e;
+  --color-success: #7f9a4a;
+  /* 리락쿠마 팔레트 안에서만 — 쿠션옐로우~곰브라운~다크브라운 명도 램프 */
+  --color-muscle-1: #8a5a2c; /* 곰 브라운 */
+  --color-muscle-2: #6a472a; /* 커피 브라운 */
+  --color-muscle-3: #b5813a; /* 카라멜 */
+  --color-muscle-4: #e0a83a; /* 앰버 */
+  --color-muscle-5: #4a3524; /* 다크브라운(외곽선) */
+  --color-muscle-6: #f3ce4b; /* 쿠션 옐로우 */
 }
 
 /* ── Base ────────────────────────────────────────────────── */

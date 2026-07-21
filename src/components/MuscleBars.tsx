@@ -1,13 +1,14 @@
 import { MUSCLE_GROUPS, type MuscleGroup } from '../lib/types'
 
-// 부위별 색상 (바 차트 + 바디 히트맵 공용)
+// 부위별 색상 (바 차트 + 바디 히트맵 공용).
+// 값은 테마 토큰 — index.css 의 --color-muscle-N 이 테마마다 달라진다.
 export const MUSCLE_COLORS: Record<MuscleGroup, string> = {
-  가슴: '#4f7cff',
-  등: '#35c07a',
-  어깨: '#f0a63a',
-  하체: '#e0574f',
-  팔: '#9b6cff',
-  코어: '#3ac0c0',
+  가슴: 'var(--color-muscle-1)',
+  등: 'var(--color-muscle-2)',
+  어깨: 'var(--color-muscle-3)',
+  하체: 'var(--color-muscle-4)',
+  팔: 'var(--color-muscle-5)',
+  코어: 'var(--color-muscle-6)',
 }
 
 export function MuscleBars({

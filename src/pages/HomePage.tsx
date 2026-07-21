@@ -117,11 +117,20 @@ export function HomePage() {
           </h1>
           <p className="text-xs text-[var(--color-text-dim)]">{fmtToday(today)}</p>
         </div>
-        {streak > 0 && (
-          <div className="flex items-center gap-1 rounded-full bg-[var(--color-surface)] px-3 py-1.5 text-sm font-bold">
-            🔥 {streak}일
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {streak > 0 && (
+            <div className="flex items-center gap-1 rounded-full bg-[var(--color-surface)] px-3 py-1.5 text-sm font-bold">
+              🔥 {streak}일
+            </div>
+          )}
+          <button
+            onClick={() => navigate('/settings')}
+            aria-label="설정"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface)] text-lg transition-colors hover:bg-[var(--color-surface-2)]"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
 
       <InstallPrompt />
