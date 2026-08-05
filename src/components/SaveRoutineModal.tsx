@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// 현재 오늘 운동을 루틴으로 저장하는 간단한 이름 입력 모달
+// 운동 구성(오늘 운동 / 과거 기록)을 루틴으로 저장하는 간단한 이름 입력 모달
 export function SaveRoutineModal({
   defaultName,
   onClose,
@@ -37,7 +37,7 @@ export function SaveRoutineModal({
       >
         <h2 className="mb-1 text-lg font-bold">루틴으로 저장</h2>
         <p className="mb-4 text-sm text-[var(--color-text-dim)]">
-          오늘 운동 구성을 루틴으로 저장해요. (세트/무게는 저장되지 않아요)
+          이 운동 구성을 루틴으로 저장해요. (세트/무게는 저장되지 않아요)
         </p>
         {saved ? (
           <div className="flex flex-col items-center gap-3 py-2">

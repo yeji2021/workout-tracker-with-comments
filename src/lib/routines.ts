@@ -1,6 +1,11 @@
 import { supabase } from './supabase'
 import type { Profile, Routine } from './types'
-import { createSession, getSessionByDate } from './workouts'
+import {
+  addSetsBulk,
+  createSession,
+  getLastPerformanceMany,
+  getSessionByDate,
+} from './workouts'
 
 const ROUTINE_SELECT =
   'id,name,' +
@@ -97,7 +102,7 @@ export async function deleteRoutine(routineId: string): Promise<void> {
   if (error) throw error
 }
 
-// ── 오늘 세션에 루틴 적용 (운동 항목만 추가, 세트는 사용자가 채움) ──
+// ── 오늘 세션에 루틴 적용 (운동 항목 + 지난 기록의 세트까지 복사) ────
 export async function applyRoutineToToday(
   profile: Profile,
   exerciseIds: string[],
@@ -113,6 +118,56 @@ export async function applyRoutineToToday(
     exercise_id: exId,
     order_index: start + i,
   }))
-  const { error } = await supabase.from('workout_entries').insert(rows)
+  const { data, error } = await supabase
+    .from('workout_entries')
+    .insert(rows)
+    .select('id,exercise_id,order_index')
   if (error) throw error
+
+  // 방금 만든 entry를 order_index로 찾는다.
+  // (같은 운동이 루틴에 두 번 들어있어도 order_index는 유일하므로 안전)
+  const created = (data ?? []) as unknown as {
+    id: string
+    exercise_id: string
+    order_index: number
+  }[]
+  const entryIdByOrder = new Map<number, string>()
+  for (const r of created) entryIdByOrder.set(r.order_index, r.id)
+  // RLS/GRANT로 insert…select가 막힌 경우엔 세션을 다시 읽어 보완.
+  // 기존에 있던 entry는 제외해야 중복 운동을 잘못 매칭하지 않는다.
+  if (entryIdByOrder.size === 0) {
+    const before = new Set(session.entries.map((e) => e.id))
+    const reloaded = await getSessionByDate(profile.profile_id, date)
+    for (const e of reloaded?.entries ?? []) {
+      if (!before.has(e.id)) entryIdByOrder.set(e.order_index, e.id)
+    }
+  }
+
+  // 운동별 직전 기록을 한 번에 조회해 세트를 그대로 복사한다
+  // (기록이 없는 운동은 세트 없이 그대로 둔다)
+  const lastByEx = await getLastPerformanceMany(
+    profile.profile_id,
+    exerciseIds,
+    date,
+  )
+  const setRows: {
+    entry_id: string
+    weight_kg: number | null
+    reps: number
+    order_index: number
+  }[] = []
+  exerciseIds.forEach((exId, i) => {
+    const entryId = entryIdByOrder.get(start + i)
+    const perf = lastByEx[exId]
+    if (!entryId || !perf) return
+    perf.sets.forEach((s, si) => {
+      setRows.push({
+        entry_id: entryId,
+        weight_kg: s.weight_kg,
+        reps: s.reps,
+        order_index: si, // is_completed는 DB 기본값(false) 사용
+      })
+    })
+  })
+  await addSetsBulk(setRows)
 }

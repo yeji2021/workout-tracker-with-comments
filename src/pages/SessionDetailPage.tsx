@@ -10,6 +10,7 @@ import {
   listSessionsOverview,
   todayISO,
 } from '../lib/workouts'
+import { createRoutine } from '../lib/routines'
 import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
 import { detectHighlights } from '../lib/highlights'
 import {
@@ -22,6 +23,7 @@ import { fmtVolume } from '../lib/format'
 import { fmtDuration } from '../components/ElapsedTimer'
 import type { WorkoutSession } from '../lib/types'
 import { BodyHeatmap } from '../components/BodyHeatmap'
+import { SaveRoutineModal } from '../components/SaveRoutineModal'
 import { ShareSheet } from '../components/ShareSheet'
 
 const MET_STRENGTH = 3.0 // 근력운동 근사 MET (1차: 상수, 향후 강도별 보정 가능)
@@ -46,6 +48,7 @@ export function SessionDetailPage() {
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareHighlight, setShareHighlight] = useState<ShareHighlights | null>(null)
+  const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -444,6 +447,14 @@ export function SessionDetailPage() {
                 startFromThisRecord()
               }}
             />
+            <SheetItem
+              icon="📋"
+              label="루틴으로 저장"
+              onClick={() => {
+                setOptionsOpen(false)
+                setSaveRoutineOpen(true)
+              }}
+            />
             {isToday && (
               <SheetItem
                 icon="✏️"
@@ -476,6 +487,28 @@ export function SessionDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {saveRoutineOpen && profile && (
+        <SaveRoutineModal
+          defaultName={`${session.date} 루틴`}
+          onClose={() => setSaveRoutineOpen(false)}
+          onSave={async (name) => {
+            // 여기서 모달을 닫지 않는다 — 모달이 성공 화면을 보여주고
+            // 사용자가 확인을 누르면 onClose로 닫힌다.
+            try {
+              await createRoutine(
+                profile.profile_id,
+                name,
+                session.entries.map((e) => e.exercise_id),
+              )
+            } catch {
+              // 저장 실패 — 조용히 성공 화면으로 넘어가지 않도록 모달을 닫고 알린다
+              setSaveRoutineOpen(false)
+              alert('루틴 저장에 실패했어요. 잠시 후 다시 시도해주세요.')
+            }
+          }}
+        />
       )}
 
       {shareOpen && profile && (

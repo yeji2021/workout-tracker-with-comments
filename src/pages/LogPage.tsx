@@ -47,7 +47,11 @@ import {
   listRestPrefs,
   setRestPref,
 } from '../lib/restPrefs'
-import { unlockAudio } from '../lib/audio'
+import {
+  cancelScheduledRestBeep,
+  scheduleRestBeep,
+  unlockAudio,
+} from '../lib/audio'
 import {
   cancelRestNotification,
   ensureNotifyPermission,
@@ -279,7 +283,8 @@ export function LogPage() {
   async function toggleComplete(set: WorkoutSet) {
     const next = !set.is_completed
     patchSetLocal(set.id, { is_completed: next })
-    await updateSet(set.id, { is_completed: next })
+    // 오디오/알림 준비는 await보다 먼저 — await를 거치면 iOS의 사용자 제스처
+    // 컨텍스트가 만료돼 AudioContext.resume()이 거부되고 알림음이 안 들린다.
     if (next) {
       unlockAudio() // 사용자 제스처(탭) 안 — iOS 오디오 언락은 여기서만 가능
       ensureNotifyPermission() // 마찬가지로 제스처 안에서만 권한 프롬프트가 뜬다
@@ -289,21 +294,24 @@ export function LogPage() {
         ? (restPrefs[exerciseId] ?? DEFAULT_REST_SECONDS)
         : DEFAULT_REST_SECONDS
       const endsAt = Date.now() + base * 1000
+      // 종료 비프를 오디오 클럭에 미리 예약 — 백그라운드/타이머 throttle에도 제시각에 울린다
+      scheduleRestBeep(endsAt)
       setRestEndsAt(endsAt)
       setActiveRest(exerciseId ? { exerciseId, base } : null)
       const exerciseName = exercises.find((e) => e.id === exerciseId)?.name
       scheduleRestNotification(endsAt, exerciseName)
     }
+    await updateSet(set.id, { is_completed: next })
   }
 
   // 휴식 조정 = 그 운동의 다음 기본 휴식값 확정 저장 (사용자 요청 핵심 동작)
   function adjustRest(deltaSeconds: number) {
-    setRestEndsAt((t) => {
-      const next = (t ?? Date.now()) + deltaSeconds * 1000
-      const exerciseName = exercises.find((e) => e.id === activeRest?.exerciseId)?.name
-      scheduleRestNotification(next, exerciseName)
-      return next
-    })
+    // 예약(비프/알림)은 상태 업데이터 밖, 즉 제스처 안에서 한 번만 다시 건다
+    const next = (restEndsAt ?? Date.now()) + deltaSeconds * 1000
+    const exerciseName = exercises.find((e) => e.id === activeRest?.exerciseId)?.name
+    setRestEndsAt(next)
+    scheduleRestBeep(next) // 기존 예약은 내부에서 취소되고 새 종료 시각으로 재예약
+    scheduleRestNotification(next, exerciseName)
     setActiveRest((a) => {
       if (!a || !profile) return a
       const newBase = clampRest(a.base + deltaSeconds)
@@ -583,6 +591,7 @@ export function LogPage() {
           baseSeconds={activeRest?.base}
           onAdjust={adjustRest}
           onDismiss={() => {
+            cancelScheduledRestBeep()
             cancelRestNotification()
             setRestEndsAt(null)
             setActiveRest(null)

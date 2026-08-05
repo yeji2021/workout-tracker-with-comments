@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  cancelScheduledRestBeep,
   isRestSoundMuted,
   playRestDoneBeep,
+  scheduleRestBeep,
   setRestSoundMuted,
   vibrateRestDone,
 } from '../lib/audio'
@@ -60,15 +62,20 @@ export function RestTimer({
   useEffect(() => {
     if (done && !alarmedRef.current) {
       alarmedRef.current = true
-      playRestDoneBeep()
+      // 휴식 시작 시점에 예약해둔 비프가 이미 울렸으면 내부에서 건너뛴다(중복 방지).
+      // 예약이 실패했거나 컨텍스트 suspend로 밀린 경우에만 여기서 즉시 재생된다.
+      playRestDoneBeep(endsAt)
       vibrateRestDone()
     }
-  }, [done])
+  }, [done, endsAt])
 
   function toggleMute() {
     const next = !muted
     setMuted(next)
     setRestSoundMuted(next)
+    // 예약 비프도 함께 취소/재예약 (이 클릭도 사용자 제스처라 오디오 언락에 유리)
+    if (next || done) cancelScheduledRestBeep()
+    else scheduleRestBeep(endsAt)
   }
 
   function toggleNotify() {

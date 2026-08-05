@@ -280,6 +280,20 @@ export async function addSet(
   return data as WorkoutSet
 }
 
+// 여러 세트를 한 번에 삽입 (루틴 적용처럼 세트를 통째로 복사할 때 사용)
+export async function addSetsBulk(
+  rows: {
+    entry_id: string
+    weight_kg: number | null
+    reps: number
+    order_index: number
+  }[],
+): Promise<void> {
+  if (rows.length === 0) return
+  const { error } = await supabase.from('sets').insert(rows)
+  if (error) throw error
+}
+
 export async function updateSet(
   setId: string,
   patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps' | 'is_completed'>>,
@@ -329,4 +343,51 @@ export async function getLastPerformance(
     .sort((a, b) => a.order_index - b.order_index)
     .map((s) => ({ weight_kg: s.weight_kg, reps: s.reps }))
   return { date: latest.workout_sessions.date, sets }
+}
+
+// 여러 운동의 직전 기록을 한 번의 왕복으로 조회 (루틴 적용 시 N+1 방지)
+// 반환 맵은 요청한 모든 exercise_id를 키로 가지며, 기록이 없으면 null.
+export async function getLastPerformanceMany(
+  profileId: string,
+  exerciseIds: string[],
+  beforeDate: string,
+): Promise<Record<string, LastPerformance | null>> {
+  const result: Record<string, LastPerformance | null> = {}
+  // 중복 운동이 들어와도 한 번만 조회하도록 정리
+  const uniqueIds = [...new Set(exerciseIds)]
+  for (const id of uniqueIds) result[id] = null
+  if (uniqueIds.length === 0) return result
+
+  const { data, error } = await supabase
+    .from('workout_entries')
+    .select(
+      'id, exercise_id, workout_sessions!inner(user_id,date), sets(weight_kg,reps,order_index)',
+    )
+    .in('exercise_id', uniqueIds)
+    .eq('workout_sessions.user_id', profileId)
+    .lt('workout_sessions.date', beforeDate)
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as {
+    exercise_id: string
+    workout_sessions: { date: string }
+    sets: { weight_kg: number | null; reps: number; order_index: number }[]
+  }[]
+
+  // 운동별로 가장 최근 날짜의 entry만 남긴다 (클라이언트 비교 — 건수가 적음)
+  const latestByEx: Record<string, (typeof rows)[number]> = {}
+  for (const row of rows) {
+    const prev = latestByEx[row.exercise_id]
+    if (!prev || prev.workout_sessions.date < row.workout_sessions.date) {
+      latestByEx[row.exercise_id] = row
+    }
+  }
+
+  for (const [exId, row] of Object.entries(latestByEx)) {
+    const sets = [...row.sets]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((s) => ({ weight_kg: s.weight_kg, reps: s.reps }))
+    result[exId] = { date: row.workout_sessions.date, sets }
+  }
+  return result
 }
