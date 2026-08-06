@@ -12,6 +12,7 @@ import { LiveProvider } from './context/LiveContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ImportPage } from './pages/ImportPage'
 
 export default function App() {
   return (
@@ -64,6 +65,8 @@ function Gate() {
             <Route path="history" element={<HistoryPage />} />
             <Route path="session/:date" element={<SessionDetailPage />} />
             <Route path="routines" element={<RoutinesPage />} />
+            {/* 릴스/유튜브 링크로 루틴 가져오기 (등록 + 목록 + 결과 검토) */}
+            <Route path="import" element={<ImportPage />} />
             <Route path="stats" element={<StatsPage />} />
             <Route path="feed" element={<FeedPage />} />
             <Route path="settings" element={<SettingsPage />} />

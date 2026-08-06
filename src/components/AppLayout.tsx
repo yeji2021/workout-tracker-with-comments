@@ -10,11 +10,14 @@ interface Tab {
   icon: string
 }
 
-// 5개 탭: 홈(오늘 운동) / 기록(캘린더) / 내 루틴 / 통계 / 피드
+// 6개 탭: 홈(오늘 운동) / 기록(캘린더) / 내 루틴 / 가져오기 / 통계 / 피드
+// '가져오기'는 링크를 붙여넣는 진입점이라 루틴 옆에 둔다. 6개는 max-w-md
+// 기준 탭당 약 74px(작은 폰에서도 62px)이라 2~4글자 라벨이 줄바꿈 없이 들어간다.
 const TABS: Tab[] = [
   { to: '/', label: '오늘', icon: '🏋️' },
   { to: '/history', label: '기록', icon: '🗓️' },
   { to: '/routines', label: '루틴', icon: '📋' },
+  { to: '/import', label: '가져오기', icon: '🎬' },
   { to: '/stats', label: '통계', icon: '📊' },
   { to: '/feed', label: '피드', icon: '💬' },
 ]
@@ -66,7 +69,8 @@ export function AppLayout() {
                     <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-danger)]" />
                   )}
                 </span>
-                <span>{tab.label}</span>
+                {/* 라벨 길이가 섞여 있어 좁은 화면에서 줄바꿈되지 않게 고정 */}
+                <span className="whitespace-nowrap">{tab.label}</span>
               </NavLink>
             </li>
           ))}
