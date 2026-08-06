@@ -93,6 +93,12 @@ body,
   height: 100%;
 }
 
+html {
+  /* iOS PWA에서 동적 툴바 접힘/스크롤 바운스 시 html 배경(기본 흰색)이
+     하단 탭바 아래로 잠깐 노출되는 것을 방지 (body 배경과 동일하게) */
+  background: var(--color-bg);
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
