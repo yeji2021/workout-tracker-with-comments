@@ -13,6 +13,7 @@ import {
   isRestNotifyEnabled,
   setRestNotifyEnabled,
 } from '../lib/notify'
+import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock'
 
 // 세트 완료 시 시작되는 휴식 타이머. endsAt(타임스탬프 ms)까지 카운트다운.
 // 탭을 벗어나도 정확하도록 실제 시각(Date.now)으로 계산한다.
@@ -42,10 +43,20 @@ export function RestTimer({
   // 시점에 즉시 재계산해 "복귀 전에 이미 끝났는데 표시가 안 됨"을 막는다.
   useEffect(() => {
     function onVisible() {
-      if (document.visibilityState === 'visible') setNow(Date.now())
+      if (document.visibilityState === 'visible') {
+        setNow(Date.now())
+        acquireWakeLock() // wake lock은 탭이 숨겨지면 브라우저가 자동 해제하므로 복귀 시 재요청
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  // 휴식 중 화면 자동 잠금 방지 — iOS PWA는 화면이 꺼지면 예약해둔 종료 비프가
+  // 재생되기 전에 JS 실행이 통째로 멈춰 소리가 안 들리는 문제가 있었다.
+  useEffect(() => {
+    acquireWakeLock()
+    return () => releaseWakeLock()
   }, [])
 
   // endsAt이 바뀌면(새 세트 완료로 새 타이머 시작) 알림 1회 재무장
@@ -66,6 +77,7 @@ export function RestTimer({
       // 예약이 실패했거나 컨텍스트 suspend로 밀린 경우에만 여기서 즉시 재생된다.
       playRestDoneBeep(endsAt)
       vibrateRestDone()
+      releaseWakeLock() // 카운트다운이 끝나면 화면을 켜둘 이유가 없다 — 배터리 절약
     }
   }, [done, endsAt])
 

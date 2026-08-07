@@ -31,20 +31,44 @@ export async function ensureNotifyPermission(): Promise<void> {
 
 let timerId: ReturnType<typeof setTimeout> | null = null
 let activeNotification: Notification | null = null
+const NOTIFY_TAG = 'rest-done'
+
+// iOS Safari(홈 화면 PWA 포함)는 페이지 컨텍스트의 `new Notification()` 생성자를
+// 지원하지 않는다(호출 시 예외 발생) — 권한 확인용 Notification.permission/
+// requestPermission만 페이지에서 쓸 수 있고, 실제 표시는 반드시
+// ServiceWorkerRegistration.showNotification()을 거쳐야 한다. 이 앱은 이미 SW를
+// 등록해두었으므로(UpdateToast) 그 경로를 우선 쓰고, 없으면(구형 브라우저) 기존
+// 방식으로 폴백한다.
+async function showNotification(title: string, options: NotificationOptions): Promise<void> {
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      await reg.showNotification(title, options)
+      return
+    } catch {
+      // SW 경로 실패 — 아래 폴백 시도
+    }
+  }
+  try {
+    activeNotification = new Notification(title, options)
+    activeNotification.onclick = () => {
+      window.focus()
+      activeNotification?.close()
+    }
+  } catch {
+    // iOS 등 페이지 컨텍스트 Notification 생성자 미지원 — 조용히 무시
+  }
+}
 
 export function scheduleRestNotification(endsAt: number, exerciseName?: string): void {
   cancelRestNotification()
   if (!isRestNotifyEnabled() || !canNotify() || Notification.permission !== 'granted') return
   const delay = Math.max(0, endsAt - Date.now())
   timerId = setTimeout(() => {
-    activeNotification = new Notification('휴식 끝! 💪', {
+    showNotification('휴식 끝! 💪', {
       body: exerciseName ? `${exerciseName} 다음 세트 시작해요` : '다음 세트 시작해요',
-      tag: 'rest-done',
+      tag: NOTIFY_TAG,
     })
-    activeNotification.onclick = () => {
-      window.focus()
-      activeNotification?.close()
-    }
   }, delay)
 }
 
@@ -56,5 +80,11 @@ export function cancelRestNotification(): void {
   if (activeNotification) {
     activeNotification.close()
     activeNotification = null
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.getNotifications({ tag: NOTIFY_TAG }))
+      .then((notifications) => notifications.forEach((n) => n.close()))
+      .catch(() => {})
   }
 }
