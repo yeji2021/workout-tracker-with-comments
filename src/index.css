@@ -114,6 +114,9 @@ body {
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* 하단 탭바의 실제 렌더 높이(safe-bottom 패딩 포함). AppLayout에서
+     ResizeObserver로 실측해 덮어쓴다 — 아래 값은 측정 전 fallback. */
+  --tabbar-h: calc(3.5rem + var(--safe-bottom));
 }
 
 /* Remove tap highlight on mobile */

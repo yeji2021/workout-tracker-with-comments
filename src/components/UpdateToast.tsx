@@ -23,7 +23,7 @@ export function UpdateToast() {
   return (
     <div
       className="fixed left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-center px-4"
-      style={{ bottom: 'calc(5rem + var(--safe-bottom))' }}
+      style={{ bottom: 'var(--tabbar-h)' }}
     >
       <button
         onClick={() => updateServiceWorker(true)}

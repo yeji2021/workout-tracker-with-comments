@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useProfile } from '../context/ProfileContext'
 import { useFeedUnread } from '../lib/feedUnread'
@@ -25,13 +26,31 @@ const TABS: Tab[] = [
 export function AppLayout() {
   const { profile } = useProfile()
   const feedUnread = useFeedUnread(profile?.profile_id)
+  const navRef = useRef<HTMLElement>(null)
+
+  // 탭바의 실제 렌더 높이를 측정해 --tabbar-h에 반영한다. 폰트/라벨 변경으로
+  // 실측 높이가 하드코딩한 값과 어긋나면 콘텐츠/플로팅 바 아래에 빈 여백이
+  // 생기는 문제가 있었어서, 값을 하드코딩하지 않고 항상 실측치를 쓴다.
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const update = () =>
+      document.documentElement.style.setProperty(
+        '--tabbar-h',
+        `${el.getBoundingClientRect().height}px`,
+      )
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col bg-[var(--color-bg)]">
       {/* 콘텐츠 영역 — 하단 탭바 높이만큼 여백 확보 */}
       <main
         className="flex-1 overflow-y-auto"
-        style={{ paddingTop: 'var(--safe-top)', paddingBottom: '5rem' }}
+        style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--tabbar-h)' }}
       >
         <Outlet />
       </main>
@@ -44,6 +63,7 @@ export function AppLayout() {
 
       {/* 하단 탭바 (모바일 앱 스타일, safe-area 대응) */}
       <nav
+        ref={navRef}
         className="fixed bottom-0 left-1/2 w-full max-w-md -translate-x-1/2 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
