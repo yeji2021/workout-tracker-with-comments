@@ -34,11 +34,17 @@ export function AppLayout() {
   useEffect(() => {
     const el = navRef.current
     if (!el) return
-    const update = () =>
+    // safe-area 인셋(padding-bottom)은 빼고 "바 자체 높이"만 재서 넘긴다.
+    // ResizeObserver는 패딩만 바뀌면 콜백을 주지 않아(border-box 옵션도 동일),
+    // 인셋을 측정값에 포함시키면 인셋이 늦게 확정되거나 화면 회전(세로 34px ↔
+    // 가로 21px)될 때 값이 낡은 채로 남는다. 인셋은 CSS에서 더한다.
+    const update = () => {
+      const pb = parseFloat(getComputedStyle(el).paddingBottom) || 0
       document.documentElement.style.setProperty(
-        '--tabbar-h',
-        `${el.getBoundingClientRect().height}px`,
+        '--tabbar-content-h',
+        `${el.getBoundingClientRect().height - pb}px`,
       )
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -61,10 +67,14 @@ export function AppLayout() {
       {/* 새 버전 배포 감지 시 업데이트 유도 토스트 */}
       <UpdateToast />
 
-      {/* 하단 탭바 (모바일 앱 스타일, safe-area 대응) */}
+      {/* 하단 탭바 (모바일 앱 스타일, safe-area 대응)
+          iOS standalone(홈 화면 앱)에서 fixed + transform + backdrop-filter 조합은
+          별도 합성 레이어로 올라가 러버밴드 스크롤 시 뷰포트 하단까지 칠해지지
+          않고 빈 띠를 남긴다. 그래서 중앙 정렬은 transform 대신 inset-x-0+mx-auto로,
+          배경은 반투명+blur 대신 불투명으로 처리한다. */}
       <nav
         ref={navRef}
-        className="fixed bottom-0 left-1/2 w-full max-w-md -translate-x-1/2 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur"
+        className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-[var(--color-border)] bg-[var(--color-bg)]"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
         <ul className="flex">
@@ -84,9 +94,10 @@ export function AppLayout() {
               >
                 <span className="relative text-xl leading-none">
                   {tab.icon}
-                  {/* 피드 탭 안읽음 표시 */}
+                  {/* 피드 탭 안읽음 표시 — 테두리는 탭바 배경과 같은 색이라야
+                      점이 깔끔하게 떨어진다 */}
                   {tab.to === '/feed' && feedUnread && (
-                    <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-danger)]" />
+                    <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg)] bg-[var(--color-danger)]" />
                   )}
                 </span>
                 {/* 라벨 길이가 섞여 있어 좁은 화면에서 줄바꿈되지 않게 고정 */}

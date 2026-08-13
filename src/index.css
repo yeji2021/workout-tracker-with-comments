@@ -114,9 +114,11 @@ body {
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* 하단 탭바의 실제 렌더 높이(safe-bottom 패딩 포함). AppLayout에서
-     ResizeObserver로 실측해 덮어쓴다 — 아래 값은 측정 전 fallback. */
-  --tabbar-h: calc(3.5rem + var(--safe-bottom));
+  /* 하단 탭바의 안전영역을 뺀 순수 높이. AppLayout에서 실측해 덮어쓴다. */
+  --tabbar-content-h: 3.5rem;
+  /* 탭바가 차지하는 실제 세로 공간. 인셋은 여기서 더해야 화면 회전 등으로
+     인셋이 바뀔 때 JS 측정 없이도 항상 따라온다. */
+  --tabbar-h: calc(var(--tabbar-content-h) + var(--safe-bottom));
 }
 
 /* Remove tap highlight on mobile */
