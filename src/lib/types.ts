@@ -3,20 +3,34 @@
 export const MUSCLE_GROUPS = ['가슴', '등', '어깨', '하체', '팔', '코어'] as const
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
 
+// 기록 방식. 'time' 은 코어 운동에만 허용된다 (DB CHECK: exercises_time_is_core_only).
+// 시간 세트는 reps=0 이라 볼륨에 안 잡히는데, 코어는 원래 볼륨 축이 의미 없는 부위라
+// 괜찮다. 배경은 SUPERSET-AND-TIME.md 2.1절 참고.
+export type ExerciseKind = 'reps' | 'time'
+
+// 시간 기반 운동을 만들 수 있는 부위 (DB 제약과 반드시 일치시킬 것)
+export const TIME_KIND_MUSCLE_GROUP: MuscleGroup = '코어'
+
 export interface Exercise {
   id: string
   name: string
   primary_muscle_group: MuscleGroup
   secondary_muscle_group: MuscleGroup | null
+  kind: ExerciseKind
   is_default: boolean
   created_by: string | null
+}
+
+export function isTimeBased(exercise: Exercise | undefined): boolean {
+  return exercise?.kind === 'time'
 }
 
 export interface WorkoutSet {
   id: string
   entry_id: string
   weight_kg: number | null
-  reps: number
+  reps: number // 시간 운동에서는 항상 0
+  duration_seconds: number | null // 시간 운동에서만 사용. 횟수 운동에서는 null
   is_completed: boolean
   order_index: number
 }
@@ -27,10 +41,30 @@ export interface WorkoutEntry {
   exercise_id: string
   order_index: number
   notes: string | null
+  // 묶음(슈퍼세트). 같은 superset_id 를 가진 entry 들이 한 묶음이며 order_index 가 연속이다.
+  // 이름/휴식은 멤버 행에 중복 저장되고, 읽을 때는 첫 멤버의 값을 쓴다.
+  superset_id: string | null
+  superset_name: string | null
+  superset_rest_seconds: number | null
   sets: WorkoutSet[]
   // 조회 시 조인해서 채움
   exercise?: Exercise
 }
+
+// LogPage 렌더 단위 — 단독 운동 하나, 또는 묶음 하나.
+// 묶음의 라운드 i = 각 멤버 entry 의 sets[i] 이다.
+export type SessionBlock =
+  | { kind: 'single'; key: string; entry: WorkoutEntry }
+  | {
+      kind: 'superset'
+      key: string // = superset_id
+      name: string
+      restSeconds: number
+      entries: WorkoutEntry[]
+    }
+
+export const DEFAULT_SUPERSET_REST_SECONDS = 90
+export const DEFAULT_SUPERSET_ROUNDS = 3
 
 export interface SessionShareRef {
   id: string
@@ -52,6 +86,12 @@ export interface RoutineEntry {
   routine_id: string
   exercise_id: string
   order_index: number
+  // 묶음 구성. superset_id 는 루틴 안에서만 유효한 그룹 키이며,
+  // 오늘 세션에 적용할 때 새 UUID 로 재매핑된다 (routines.applyRoutineToToday).
+  superset_id: string | null
+  superset_name: string | null
+  superset_rest_seconds: number | null
+  default_rounds: number | null // 적용 시 만들 세트(라운드) 수
   exercise?: Exercise
 }
 
@@ -59,6 +99,15 @@ export interface Routine {
   id: string
   name: string
   entries: RoutineEntry[]
+}
+
+// 루틴 저장 시 넘기는 입력 (id/order_index 는 저장 쪽에서 채운다)
+export interface RoutineEntryInput {
+  exercise_id: string
+  superset_id: string | null
+  superset_name: string | null
+  superset_rest_seconds: number | null
+  default_rounds: number | null
 }
 
 // 한 사용자가 속한 그룹 (다대다 — profile당 여러 그룹 가능)

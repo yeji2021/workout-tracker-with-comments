@@ -6,6 +6,7 @@ import { todayISO } from './workouts'
 export interface StatSet {
   weight_kg: number | null
   reps: number
+  duration_seconds?: number | null // 시간 기반 운동(코어 한정)에서만 채워진다
   is_completed: boolean
 }
 export interface StatEntry {
@@ -36,7 +37,7 @@ export async function fetchAllSessions(
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(
-      'date, workout_entries(exercises(name,primary_muscle_group), sets(weight_kg,reps,is_completed))',
+      'date, workout_entries(exercises(name,primary_muscle_group), sets(weight_kg,reps,duration_seconds,is_completed))',
     )
     .eq('user_id', profileId)
     .order('date', { ascending: true })
@@ -62,7 +63,16 @@ export async function fetchAllSessions(
 // ── 계산 유틸 ────────────────────────────────────────────────────────
 // ?? 는 NaN을 걸러내지 못하므로 Number.isFinite로 방어한다.
 const num = (v: number | null | undefined) => (Number.isFinite(v) ? (v as number) : 0)
-const isLogged = (s: StatSet) => num(s.reps) > 0
+
+// "실제로 수행한 세트인가" 판정. 횟수 운동은 reps, 시간 운동은 duration 으로 센다.
+// 화면마다 이 판정을 따로 복사해 두면 "플랭크만 한 날"이 곳곳에서 다르게 보이므로
+// (기록 탭은 빈 날, 완료 요약은 0세트 …) 반드시 이 함수 하나만 쓴다.
+export const isLoggedSet = (s: StatSet) =>
+  num(s.reps) > 0 || num(s.duration_seconds) > 0
+const isLogged = isLoggedSet
+
+// 볼륨은 무게×횟수. 시간 세트는 reps=0 이라 중량이 있어도(가중 플랭크) 0 이 된다 —
+// 의도된 동작이다. 시간과 무게를 곱한 값은 kg×회 볼륨과 같은 축에 놓을 수 없다.
 const setVolume = (s: StatSet) => num(s.weight_kg) * num(s.reps)
 
 function emptyGroups(): Record<MuscleGroup, number> {
@@ -160,7 +170,9 @@ export function personalRecords(sessions: StatSession[]): PR[] {
     for (const e of ses.entries) {
       if (!e.exerciseName) continue
       for (const st of e.sets) {
-        if (!isLogged(st) || st.weight_kg == null) continue
+        // 시간 세트(reps=0)는 제외한다. isLogged 가 duration 도 인정하게 되면서
+        // 가중 플랭크(20kg·0회·60초)가 "플랭크 20kg×0회" 로 무게 PR 에 끼어들 수 있다.
+        if (!isLogged(st) || st.weight_kg == null || num(st.reps) <= 0) continue
         const cur = best.get(e.exerciseName)
         const better =
           !cur ||
@@ -194,6 +206,7 @@ export function toStatSession(session: WorkoutSession): StatSession {
       sets: e.sets.map((s) => ({
         weight_kg: s.weight_kg,
         reps: s.reps,
+        duration_seconds: s.duration_seconds,
         is_completed: s.is_completed,
       })),
     })),

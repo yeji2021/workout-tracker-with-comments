@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
@@ -14,30 +14,35 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { useProfile } from '../context/ProfileContext'
-import type {
-  Exercise,
-  WorkoutSession,
-  WorkoutSet,
-} from '../lib/types'
+import type { Exercise, SessionBlock, WorkoutSession, WorkoutSet } from '../lib/types'
 import {
   addEntry,
   addSet,
+  addSupersetRound,
   createSession,
+  createSuperset,
   deleteEntry,
   deleteSet,
+  deleteSuperset,
   endSession,
   getLastPerformance,
   getSessionByDate,
   listExercises,
+  removeSupersetRound,
+  renameSuperset,
   reorderEntries,
+  setSupersetRestSeconds,
+  swapEntryOrder,
   todayISO,
+  toRoutineEntryInputs,
+  ungroupSuperset,
   updateEntryNotes,
   updateSet,
   type LastPerformance,
 } from '../lib/workouts'
+import { fetchAllSessions, isLoggedSet } from '../lib/stats'
 import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
 import { detectHighlights } from '../lib/highlights'
-import { fetchAllSessions } from '../lib/stats'
 import { type Cheer } from '../lib/live'
 import { useLive } from '../context/LiveContext'
 import { createRoutine } from '../lib/routines'
@@ -59,6 +64,9 @@ import {
 } from '../lib/notify'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { EntryCard } from '../components/EntryCard'
+import { SupersetCard } from '../components/SupersetCard'
+import { SupersetSetupSheet } from '../components/SupersetSetupSheet'
+import { ExerciseTimer } from '../components/ExerciseTimer'
 import { RestTimer } from '../components/RestTimer'
 import { SaveRoutineModal } from '../components/SaveRoutineModal'
 import { ElapsedTimer, fmtDuration } from '../components/ElapsedTimer'
@@ -66,6 +74,57 @@ import { SessionSummaryModal } from '../components/SessionSummaryModal'
 import { ShareSheet } from '../components/ShareSheet'
 import { CheerToast } from '../components/CheerToast'
 
+type SupersetBlock = Extract<SessionBlock, { kind: 'superset' }>
+
+// session.entries(order_index 순 flat 목록) → 렌더 단위(단독/묶음) 블록으로 묶는다.
+// 같은 superset_id는 항상 order_index가 연속이라는 불변식(SUPERSET-AND-TIME.md 2.2)
+// 덕분에, 순서대로 훑으며 직전 블록과 superset_id가 같으면 이어붙이기만 하면 된다.
+function buildBlocks(entries: WorkoutSession['entries']): SessionBlock[] {
+  const blocks: SessionBlock[] = []
+  for (const entry of entries) {
+    if (!entry.superset_id) {
+      blocks.push({ kind: 'single', key: entry.id, entry })
+      continue
+    }
+    const last = blocks[blocks.length - 1]
+    if (last && last.kind === 'superset' && last.key === entry.superset_id) {
+      last.entries.push(entry)
+    } else {
+      blocks.push({
+        kind: 'superset',
+        key: entry.superset_id,
+        name: entry.superset_name ?? '묶음',
+        restSeconds: entry.superset_rest_seconds ?? 90,
+        entries: [entry],
+      })
+    }
+  }
+  return blocks
+}
+
+// 묶음 기본 이름: 선택한 운동들의 최빈 부위 + " 묶음"
+function suggestSupersetName(exs: Exercise[]): string {
+  const counts = new Map<string, number>()
+  for (const ex of exs) {
+    counts.set(ex.primary_muscle_group, (counts.get(ex.primary_muscle_group) ?? 0) + 1)
+  }
+  let best: string = exs[0]?.primary_muscle_group ?? '운동'
+  let bestCount = 0
+  for (const [g, c] of counts) {
+    if (c > bestCount) {
+      best = g
+      bestCount = c
+    }
+  }
+  return `${best} 묶음`
+}
+
+// 휴식 시작 시 누구 소유의 기본값을 조정/저장할지 — 단일 운동은 exercise_rest_prefs,
+// 묶음은 그 묶음의 superset_rest_seconds. ±10초 조정(adjustRest)이 이 구분에 따라
+// 서로 다른 곳에 저장한다.
+type ActiveRest =
+  | { kind: 'exercise'; exerciseId: string; base: number; label?: string }
+  | { kind: 'superset'; sessionId: string; supersetId: string; base: number; label?: string }
 
 export function LogPage() {
   const { profile } = useProfile()
@@ -78,12 +137,17 @@ export function LogPage() {
     {},
   )
   const [loading, setLoading] = useState(true)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'single' | 'superset' | null>(null)
+  const [supersetDraft, setSupersetDraft] = useState<Exercise[] | null>(null)
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null)
   const [restPrefs, setRestPrefs] = useState<Record<string, number>>({})
-  const [activeRest, setActiveRest] = useState<{
-    exerciseId: string
-    base: number
+  const [activeRest, setActiveRest] = useState<ActiveRest | null>(null)
+  const [exerciseTimer, setExerciseTimer] = useState<{
+    entryId: string
+    setId: string
+    startedAt: number
+    targetSeconds: number | null
+    exerciseName?: string
   } | null>(null)
   const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -96,6 +160,8 @@ export function LogPage() {
     volume: number
   } | null>(null)
   const [incomingCheer, setIncomingCheer] = useState<Cheer | null>(null)
+
+  const blocks = useMemo(() => (session ? buildBlocks(session.entries) : []), [session])
 
   // 운동 중(시작~완료 사이)인 동안 내 그룹들에 "운동 중" 상태를 알리고,
   // 친구가 보낸 응원을 수신한다. 세션이 완료/종료되면 자동으로 나간다.
@@ -129,7 +195,7 @@ export function LogPage() {
 
   // 추가 후 스크롤 대상. session 커밋(=DOM 갱신) 이후 useEffect에서 실행한다.
   const pendingScroll = useRef<
-    null | { type: 'bottom' } | { type: 'set'; id: string } | { type: 'timer' }
+    null | { type: 'bottom' } | { type: 'set'; id: string }
   >(null)
   useEffect(() => {
     const p = pendingScroll.current
@@ -140,10 +206,6 @@ export function LogPage() {
     if (p.type === 'bottom') {
       const main = document.querySelector('main')
       if (main) main.scrollTop = main.scrollHeight
-    } else if (p.type === 'timer') {
-      document
-        .querySelector('[data-rest-timer]')
-        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     } else {
       document
         .querySelector(`[data-set-id="${p.id}"]`)
@@ -198,7 +260,7 @@ export function LogPage() {
     let ses = session
     if (!ses) ses = await createSession(profile, today)
     await addEntry(ses.id, exercise.id, ses.entries.length)
-    setPickerOpen(false)
+    setPickerMode(null)
     pendingScroll.current = { type: 'bottom' } // 새 운동이 보이도록 아래로 스크롤
 
     const perf = await getLastPerformance(profile.profile_id, exercise.id, today)
@@ -212,11 +274,37 @@ export function LogPage() {
       )
       if (newEntry) {
         for (let i = 0; i < perf.sets.length; i++) {
-          await addSet(newEntry.id, perf.sets[i].weight_kg, perf.sets[i].reps, i)
+          await addSet(
+            newEntry.id,
+            perf.sets[i].weight_kg,
+            perf.sets[i].reps,
+            i,
+            perf.sets[i].duration_seconds,
+          )
         }
       }
     }
 
+    await refreshSession()
+  }
+
+  // 묶음 만들기 확정 (ExercisePicker 다중 선택 → SupersetSetupSheet)
+  async function handleConfirmSuperset(params: {
+    name: string
+    rounds: number
+    restSeconds: number
+  }) {
+    if (!profile || !supersetDraft) return
+    let ses = session
+    if (!ses) ses = await createSession(profile, today)
+    await createSuperset(profile, ses, {
+      exerciseIds: supersetDraft.map((ex) => ex.id),
+      name: params.name,
+      rounds: params.rounds,
+      restSeconds: params.restSeconds,
+    })
+    setSupersetDraft(null)
+    pendingScroll.current = { type: 'bottom' }
     await refreshSession()
   }
 
@@ -225,7 +313,7 @@ export function LogPage() {
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   function changeSet(
     setId: string,
-    patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps'>>,
+    patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps' | 'duration_seconds'>>,
   ) {
     patchSetLocal(setId, patch)
     const key = setId + ':' + Object.keys(patch)[0]
@@ -259,7 +347,9 @@ export function LogPage() {
 
   function patchSetLocal(
     setId: string,
-    patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps' | 'is_completed'>>,
+    patch: Partial<
+      Pick<WorkoutSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'is_completed'>
+    >,
   ) {
     setSession((s) =>
       s
@@ -276,54 +366,160 @@ export function LogPage() {
     )
   }
 
+  function patchSupersetRestLocal(supersetId: string, seconds: number) {
+    setSession((s) =>
+      s
+        ? {
+            ...s,
+            entries: s.entries.map((e) =>
+              e.superset_id === supersetId
+                ? { ...e, superset_rest_seconds: seconds }
+                : e,
+            ),
+          }
+        : s,
+    )
+  }
+
   // 구체적 값을 직접 받아 저장 (상태를 다시 읽지 않아 stale 방지)
   async function persistSet(
     setId: string,
-    patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps'>>,
+    patch: Partial<Pick<WorkoutSet, 'weight_kg' | 'reps' | 'duration_seconds'>>,
   ) {
     await updateSet(setId, patch)
+  }
+
+  // 휴식 시작 — 단일 운동 완료, 묶음 라운드 완료, 운동 타이머 완료가 모두 이 한 곳을 거친다.
+  function beginRest(baseSeconds: number, active: ActiveRest) {
+    unlockAudio() // 사용자 제스처(탭) 안 — iOS 오디오 언락은 여기서만 가능
+    ensureNotifyPermission() // 마찬가지로 제스처 안에서만 권한 프롬프트가 뜬다
+    const endsAt = Date.now() + baseSeconds * 1000
+    // 종료 비프를 오디오 클럭에 미리 예약 — 백그라운드/타이머 throttle에도 제시각에 울린다
+    scheduleRestBeep(endsAt)
+    setRestEndsAt(endsAt)
+    setActiveRest(active)
+    scheduleRestNotification(endsAt, active.label)
   }
 
   async function toggleComplete(set: WorkoutSet) {
     const next = !set.is_completed
     patchSetLocal(set.id, { is_completed: next })
-    // 오디오/알림 준비는 await보다 먼저 — await를 거치면 iOS의 사용자 제스처
-    // 컨텍스트가 만료돼 AudioContext.resume()이 거부되고 알림음이 안 들린다.
     if (next) {
-      unlockAudio() // 사용자 제스처(탭) 안 — iOS 오디오 언락은 여기서만 가능
-      ensureNotifyPermission() // 마찬가지로 제스처 안에서만 권한 프롬프트가 뜬다
       const entry = session?.entries.find((e) => e.id === set.entry_id)
       const exerciseId = entry?.exercise_id
       const base = exerciseId
         ? (restPrefs[exerciseId] ?? DEFAULT_REST_SECONDS)
         : DEFAULT_REST_SECONDS
-      const endsAt = Date.now() + base * 1000
-      // 종료 비프를 오디오 클럭에 미리 예약 — 백그라운드/타이머 throttle에도 제시각에 울린다
-      scheduleRestBeep(endsAt)
-      setRestEndsAt(endsAt)
-      setActiveRest(exerciseId ? { exerciseId, base } : null)
-      pendingScroll.current = { type: 'timer' }
       const exerciseName = exercises.find((e) => e.id === exerciseId)?.name
-      scheduleRestNotification(endsAt, exerciseName)
+      if (exerciseId) {
+        beginRest(base, { kind: 'exercise', exerciseId, base, label: exerciseName })
+      }
     }
     await updateSet(set.id, { is_completed: next })
   }
 
-  // 휴식 조정 = 그 운동의 다음 기본 휴식값 확정 저장 (사용자 요청 핵심 동작)
+  // 묶음 멤버 세트 완료 — 라운드의 "마지막 멤버"를 완료했을 때만 휴식을 시작한다
+  // (SUPERSET-AND-TIME.md 3.4). 앞선 멤버들은 바로 다음 운동으로 이어간다.
+  async function toggleSupersetComplete(
+    entryId: string,
+    set: WorkoutSet,
+    block: SupersetBlock,
+  ) {
+    const next = !set.is_completed
+    patchSetLocal(set.id, { is_completed: next })
+    if (next) {
+      const isLastMember = block.entries[block.entries.length - 1]?.id === entryId
+      if (isLastMember && session) {
+        beginRest(block.restSeconds, {
+          kind: 'superset',
+          sessionId: session.id,
+          supersetId: block.key,
+          base: block.restSeconds,
+          label: block.name,
+        })
+      }
+    }
+    await updateSet(set.id, { is_completed: next })
+  }
+
+  // 휴식 조정 = 그 소유(운동/묶음)의 다음 기본 휴식값 확정 저장
   function adjustRest(deltaSeconds: number) {
     // 예약(비프/알림)은 상태 업데이터 밖, 즉 제스처 안에서 한 번만 다시 건다
     const next = (restEndsAt ?? Date.now()) + deltaSeconds * 1000
-    const exerciseName = exercises.find((e) => e.id === activeRest?.exerciseId)?.name
     setRestEndsAt(next)
     scheduleRestBeep(next) // 기존 예약은 내부에서 취소되고 새 종료 시각으로 재예약
-    scheduleRestNotification(next, exerciseName)
+    scheduleRestNotification(next, activeRest?.label)
     setActiveRest((a) => {
       if (!a || !profile) return a
       const newBase = clampRest(a.base + deltaSeconds)
-      setRestPrefs((m) => ({ ...m, [a.exerciseId]: newBase }))
-      setRestPref(profile.profile_id, a.exerciseId, newBase).catch(() => {})
+      if (a.kind === 'exercise') {
+        setRestPrefs((m) => ({ ...m, [a.exerciseId]: newBase }))
+        setRestPref(profile.profile_id, a.exerciseId, newBase).catch(() => {})
+      } else {
+        patchSupersetRestLocal(a.supersetId, newBase)
+        setSupersetRestSeconds(a.sessionId, a.supersetId, newBase).catch(() => {})
+      }
       return { ...a, base: newBase }
     })
+  }
+
+  // ── 시간 기반(코어) 운동 타이머 ──────────────────────────────────
+  // 운동 타이머와 휴식 타이머는 동시에 뜨지 않는다 — 시작하면 진행 중이던 휴식을 취소한다.
+  function startExerciseTimer(entryId: string, setId: string, targetSecondsRaw: number) {
+    if (restEndsAt) {
+      cancelScheduledRestBeep()
+      cancelRestNotification()
+      setRestEndsAt(null)
+      setActiveRest(null)
+    }
+    unlockAudio() // 제스처(▶ 탭) 안 — 마운트 후에는 iOS가 거부한다
+    ensureNotifyPermission()
+    const entry = session?.entries.find((e) => e.id === entryId)
+    setExerciseTimer({
+      entryId,
+      setId,
+      startedAt: Date.now(),
+      targetSeconds: targetSecondsRaw > 0 ? targetSecondsRaw : null,
+      exerciseName: entry?.exercise?.name,
+    })
+  }
+
+  async function finishExerciseTimer(actualSeconds: number) {
+    const t = exerciseTimer
+    setExerciseTimer(null)
+    if (!t || !session) return
+    patchSetLocal(t.setId, { duration_seconds: actualSeconds, is_completed: true })
+    await updateSet(t.setId, { duration_seconds: actualSeconds, is_completed: true })
+
+    // 완료 처리는 ✓ 수동 탭과 동일한 규칙을 따른다: 단독이면 그 운동 휴식,
+    // 묶음이면 라운드 마지막 멤버일 때만.
+    const block = blocks.find((b) =>
+      b.kind === 'single'
+        ? b.entry.id === t.entryId
+        : b.entries.some((e) => e.id === t.entryId),
+    )
+    if (!block) return
+    if (block.kind === 'single') {
+      const exerciseId = block.entry.exercise_id
+      const base = restPrefs[exerciseId] ?? DEFAULT_REST_SECONDS
+      beginRest(base, {
+        kind: 'exercise',
+        exerciseId,
+        base,
+        label: block.entry.exercise?.name,
+      })
+    } else {
+      const isLastMember = block.entries[block.entries.length - 1]?.id === t.entryId
+      if (isLastMember) {
+        beginRest(block.restSeconds, {
+          kind: 'superset',
+          sessionId: session.id,
+          supersetId: block.key,
+          base: block.restSeconds,
+          label: block.name,
+        })
+      }
+    }
   }
 
   async function handleAddSet(entryId: string) {
@@ -333,15 +529,24 @@ export function LogPage() {
     const lastSet = entry.sets[entry.sets.length - 1]
     const perf = lastByEx[entry.exercise_id]
     const fill = lastSet
-      ? { weight: lastSet.weight_kg, reps: lastSet.reps }
+      ? {
+          weight: lastSet.weight_kg,
+          reps: lastSet.reps,
+          duration: lastSet.duration_seconds,
+        }
       : perf?.sets[0]
-        ? { weight: perf.sets[0].weight_kg, reps: perf.sets[0].reps }
-        : { weight: null, reps: 0 }
+        ? {
+            weight: perf.sets[0].weight_kg,
+            reps: perf.sets[0].reps,
+            duration: perf.sets[0].duration_seconds,
+          }
+        : { weight: null, reps: 0, duration: null }
     const created = await addSet(
       entryId,
       fill.weight,
       fill.reps,
       entry.sets.length,
+      fill.duration,
     )
     pendingScroll.current = { type: 'set', id: created.id } // 새 세트로 스크롤
     setSession((s) =>
@@ -379,15 +584,145 @@ export function LogPage() {
     )
   }
 
-  // 드래그 순서 변경
+  // ── 묶음 라운드/멤버/메타 조작 ──────────────────────────────────
+  async function handleAddSupersetRound(block: SupersetBlock) {
+    const nextIndex = Math.max(0, ...block.entries.map((e) => e.sets.length))
+    const members = block.entries.map((e) => {
+      const lastSet = e.sets[e.sets.length - 1]
+      const perf = lastByEx[e.exercise_id]
+      const fill = lastSet
+        ? {
+            weight_kg: lastSet.weight_kg,
+            reps: lastSet.reps,
+            duration_seconds: lastSet.duration_seconds,
+          }
+        : perf?.sets[0]
+          ? {
+              weight_kg: perf.sets[0].weight_kg,
+              reps: perf.sets[0].reps,
+              duration_seconds: perf.sets[0].duration_seconds,
+            }
+          : { weight_kg: null, reps: 0, duration_seconds: null }
+      return { entryId: e.id, orderIndex: nextIndex, ...fill }
+    })
+    const created = await addSupersetRound(members)
+    setSession((s) => {
+      if (!s) return s
+      const byEntry = new Map(created.map((c) => [c.entry_id, c]))
+      return {
+        ...s,
+        entries: s.entries.map((e) => {
+          const c = byEntry.get(e.id)
+          return c ? { ...e, sets: [...e.sets, c] } : e
+        }),
+      }
+    })
+  }
+
+  async function handleRemoveSupersetRound(block: SupersetBlock, roundIndex: number) {
+    const setIds = block.entries
+      .map((e) => e.sets[roundIndex]?.id)
+      .filter((id): id is string => !!id)
+    if (setIds.length === 0) return
+    await removeSupersetRound(setIds)
+    setSession((s) =>
+      s
+        ? {
+            ...s,
+            entries: s.entries.map((e) =>
+              e.superset_id === block.key
+                ? { ...e, sets: e.sets.filter((_, i) => i !== roundIndex) }
+                : e,
+            ),
+          }
+        : s,
+    )
+  }
+
+  async function handleMoveMember(
+    block: SupersetBlock,
+    entryId: string,
+    direction: -1 | 1,
+  ) {
+    const idx = block.entries.findIndex((e) => e.id === entryId)
+    const otherIdx = idx + direction
+    if (idx === -1 || otherIdx < 0 || otherIdx >= block.entries.length) return
+    const a = block.entries[idx]
+    const b = block.entries[otherIdx]
+    await swapEntryOrder(a.id, a.order_index, b.id, b.order_index)
+    setSession((s) => {
+      if (!s) return s
+      const entries = s.entries
+        .map((e) => {
+          if (e.id === a.id) return { ...e, order_index: b.order_index }
+          if (e.id === b.id) return { ...e, order_index: a.order_index }
+          return e
+        })
+        .sort((x, y) => x.order_index - y.order_index)
+      return { ...s, entries }
+    })
+  }
+
+  async function handleRenameSuperset(block: SupersetBlock, newName: string) {
+    if (!session) return
+    await renameSuperset(session.id, block.key, newName)
+    setSession((s) =>
+      s
+        ? {
+            ...s,
+            entries: s.entries.map((e) =>
+              e.superset_id === block.key ? { ...e, superset_name: newName } : e,
+            ),
+          }
+        : s,
+    )
+  }
+
+  async function handleChangeSupersetRest(block: SupersetBlock, newSeconds: number) {
+    if (!session) return
+    await setSupersetRestSeconds(session.id, block.key, newSeconds)
+    patchSupersetRestLocal(block.key, newSeconds)
+  }
+
+  async function handleUngroupSuperset(block: SupersetBlock) {
+    if (!session) return
+    await ungroupSuperset(session.id, block.key)
+    setSession((s) =>
+      s
+        ? {
+            ...s,
+            entries: s.entries.map((e) =>
+              e.superset_id === block.key
+                ? { ...e, superset_id: null, superset_name: null, superset_rest_seconds: null }
+                : e,
+            ),
+          }
+        : s,
+    )
+  }
+
+  async function handleDeleteSuperset(block: SupersetBlock) {
+    if (!session) return
+    await deleteSuperset(session.id, block.key)
+    setSession((s) =>
+      s ? { ...s, entries: s.entries.filter((e) => e.superset_id !== block.key) } : s,
+    )
+  }
+
+  // 드래그 순서 변경 — 블록(단독 운동 또는 묶음 전체) 단위로 움직인다.
+  // 블록을 펼쳐 멤버 id들을 연속으로 나열한 뒤 기존 reorderEntries를 그대로 쓴다.
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id || !session) return
-    const oldIndex = session.entries.findIndex((e) => e.id === active.id)
-    const newIndex = session.entries.findIndex((e) => e.id === over.id)
-    const reordered = arrayMove(session.entries, oldIndex, newIndex)
-    setSession({ ...session, entries: reordered })
-    await reorderEntries(reordered.map((e) => e.id))
+    const oldIndex = blocks.findIndex((b) => b.key === active.id)
+    const newIndex = blocks.findIndex((b) => b.key === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reorderedBlocks = arrayMove(blocks, oldIndex, newIndex)
+    const flatEntries = reorderedBlocks.flatMap((b) =>
+      b.kind === 'single' ? [b.entry] : b.entries,
+    )
+    setSession({ ...session, entries: flatEntries })
+    await reorderEntries(flatEntries.map((e) => e.id))
   }
 
   async function openShare() {
@@ -431,7 +766,7 @@ export function LogPage() {
       let volume = 0
       for (const e of session.entries) {
         for (const st of e.sets) {
-          if (st.reps > 0) {
+          if (isLoggedSet(st)) {
             setCount += 1
             volume += (st.weight_kg ?? 0) * st.reps
           }
@@ -547,38 +882,93 @@ export function LogPage() {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={session!.entries.map((e) => e.id)}
+            items={blocks.map((b) => b.key)}
             strategy={verticalListSortingStrategy}
           >
-            {session!.entries.map((entry) => (
-              <EntryCard
-                key={entry.id}
-                entry={entry}
-                last={lastByEx[entry.exercise_id] ?? null}
-                onToggleComplete={toggleComplete}
-                onChangeSet={changeSet}
-                onPersistSet={persistSet}
-                onAddSet={() => handleAddSet(entry.id)}
-                onDeleteSet={(setId) => handleDeleteSet(entry.id, setId)}
-                onChangeNotes={(notes) => changeNotes(entry.id, notes)}
-                onPersistNotes={(notes) =>
-                  updateEntryNotes(entry.id, notes).catch(() => {})
-                }
-                onRemove={() => handleRemoveEntry(entry.id)}
-              />
-            ))}
+            {blocks.map((block) =>
+              block.kind === 'single' ? (
+                <EntryCard
+                  key={block.key}
+                  entry={block.entry}
+                  last={lastByEx[block.entry.exercise_id] ?? null}
+                  onToggleComplete={toggleComplete}
+                  onChangeSet={changeSet}
+                  onPersistSet={persistSet}
+                  onAddSet={() => handleAddSet(block.entry.id)}
+                  onDeleteSet={(setId) => handleDeleteSet(block.entry.id, setId)}
+                  onChangeNotes={(notes) => changeNotes(block.entry.id, notes)}
+                  onPersistNotes={(notes) =>
+                    updateEntryNotes(block.entry.id, notes).catch(() => {})
+                  }
+                  onRemove={() => handleRemoveEntry(block.entry.id)}
+                  onStartTimer={(setId, target) =>
+                    startExerciseTimer(block.entry.id, setId, target)
+                  }
+                />
+              ) : (
+                <SupersetCard
+                  key={block.key}
+                  supersetId={block.key}
+                  name={block.name}
+                  restSeconds={block.restSeconds}
+                  rounds={Math.max(0, ...block.entries.map((e) => e.sets.length))}
+                  members={block.entries.map((e) => ({
+                    entry: e,
+                    last: lastByEx[e.exercise_id] ?? null,
+                  }))}
+                  onToggleComplete={(entryId, set) =>
+                    toggleSupersetComplete(entryId, set, block)
+                  }
+                  onChangeSet={(_entryId, setId, patch) => changeSet(setId, patch)}
+                  onPersistSet={(_entryId, setId, patch) => persistSet(setId, patch)}
+                  onStartTimer={(entryId, setId, target) =>
+                    startExerciseTimer(entryId, setId, target)
+                  }
+                  onAddRound={() => handleAddSupersetRound(block)}
+                  onRemoveRound={(roundIndex) =>
+                    handleRemoveSupersetRound(block, roundIndex)
+                  }
+                  onMoveMemberUp={(entryId) => handleMoveMember(block, entryId, -1)}
+                  onMoveMemberDown={(entryId) => handleMoveMember(block, entryId, 1)}
+                  onRename={(newName) => handleRenameSuperset(block, newName)}
+                  onChangeRestSeconds={(newSeconds) =>
+                    handleChangeSupersetRest(block, newSeconds)
+                  }
+                  onUngroup={() => handleUngroupSuperset(block)}
+                  onDelete={() => handleDeleteSuperset(block)}
+                />
+              ),
+            )}
           </SortableContext>
         </DndContext>
       )}
 
-      <button
-        onClick={() => setPickerOpen(true)}
-        className="mt-3 w-full rounded-xl bg-[var(--color-accent)] py-3.5 font-semibold text-white"
-      >
-        + 운동 추가
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => setPickerMode('single')}
+          className="flex-1 rounded-xl bg-[var(--color-accent)] py-3.5 font-semibold text-white"
+        >
+          + 운동 추가
+        </button>
+        <button
+          onClick={() => setPickerMode('superset')}
+          className="flex-1 rounded-xl border border-[var(--color-border)] py-3.5 font-semibold text-[var(--color-text-dim)]"
+        >
+          + 묶음 추가
+        </button>
+      </div>
 
-      {restEndsAt && (
+      {exerciseTimer && (
+        <ExerciseTimer
+          startedAt={exerciseTimer.startedAt}
+          targetSeconds={exerciseTimer.targetSeconds}
+          exerciseName={exerciseTimer.exerciseName}
+          onComplete={finishExerciseTimer}
+          onCancel={() => setExerciseTimer(null)}
+        />
+      )}
+
+      {!exerciseTimer && restEndsAt && (
         <RestTimer
           endsAt={restEndsAt}
           baseSeconds={activeRest?.base}
@@ -592,15 +982,27 @@ export function LogPage() {
         />
       )}
 
-      {pickerOpen && profile && (
+      {pickerMode && profile && (
         <ExercisePicker
           exercises={exercises}
           profileId={profile.profile_id}
           onPick={handlePick}
-          onClose={() => setPickerOpen(false)}
-          onExercisesChanged={() =>
-            listExercises().then(setExercises)
-          }
+          onClose={() => setPickerMode(null)}
+          onExercisesChanged={() => listExercises().then(setExercises)}
+          multiSelect={pickerMode === 'superset'}
+          onConfirmMulti={(exs) => {
+            setPickerMode(null)
+            setSupersetDraft(exs)
+          }}
+        />
+      )}
+
+      {supersetDraft && (
+        <SupersetSetupSheet
+          exercises={supersetDraft}
+          defaultName={suggestSupersetName(supersetDraft)}
+          onClose={() => setSupersetDraft(null)}
+          onConfirm={handleConfirmSuperset}
         />
       )}
 
@@ -614,7 +1016,7 @@ export function LogPage() {
             await createRoutine(
               profile.profile_id,
               name,
-              session.entries.map((e) => e.exercise_id),
+              toRoutineEntryInputs(session.entries),
             )
           }}
         />

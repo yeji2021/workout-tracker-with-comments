@@ -60,19 +60,25 @@ async function showNotification(title: string, options: NotificationOptions): Pr
   }
 }
 
-export function scheduleRestNotification(endsAt: number, exerciseName?: string): void {
-  cancelRestNotification()
+// 타이머 종료 팝업 알림 일반화 버전 — 휴식/운동 타이머가 제목·본문만 다르게 넘겨 공유한다.
+// 슬롯은 하나뿐이라(timerId/activeNotification) 동시에 하나만 예약 가능 — 휴식·운동
+// 타이머가 동시에 뜨지 않는다는 앱 규칙과도 맞는다(SUPERSET-AND-TIME.md 3.1 동시성 참고).
+export function scheduleTimerNotification(
+  endsAt: number,
+  opts: { title: string; body: string }
+): void {
+  cancelTimerNotification()
   if (!isRestNotifyEnabled() || !canNotify() || Notification.permission !== 'granted') return
   const delay = Math.max(0, endsAt - Date.now())
   timerId = setTimeout(() => {
-    showNotification('휴식 끝! 💪', {
-      body: exerciseName ? `${exerciseName} 다음 세트 시작해요` : '다음 세트 시작해요',
+    showNotification(opts.title, {
+      body: opts.body,
       tag: NOTIFY_TAG,
     })
   }, delay)
 }
 
-export function cancelRestNotification(): void {
+export function cancelTimerNotification(): void {
   if (timerId != null) {
     clearTimeout(timerId)
     timerId = null
@@ -87,4 +93,15 @@ export function cancelRestNotification(): void {
       .then((notifications) => notifications.forEach((n) => n.close()))
       .catch(() => {})
   }
+}
+
+export function scheduleRestNotification(endsAt: number, exerciseName?: string): void {
+  scheduleTimerNotification(endsAt, {
+    title: '휴식 끝! 💪',
+    body: exerciseName ? `${exerciseName} 다음 세트 시작해요` : '다음 세트 시작해요',
+  })
+}
+
+export function cancelRestNotification(): void {
+  cancelTimerNotification()
 }

@@ -14,13 +14,61 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Exercise, Routine } from '../lib/types'
+import type { Exercise, Routine, RoutineEntryInput } from '../lib/types'
+import { DEFAULT_SUPERSET_ROUNDS } from '../lib/types'
 import { createRoutine, updateRoutine } from '../lib/routines'
 import { ExercisePicker } from './ExercisePicker'
 
 interface Row {
   uid: string
   exercise: Exercise
+  // 기존 루틴에 있던 묶음 소속 정보. 이 편집기에서는 새 묶음을 만들 수 없고
+  // (범위 밖), 불러온 묶음이 저장 시 그대로 살아남도록만 보존한다.
+  superset_id: string | null
+  superset_name: string | null
+  superset_rest_seconds: number | null
+  default_rounds: number | null
+}
+
+// 드래그로 자유롭게 순서를 바꿔도 "같은 superset_id는 order_index가 연속"
+// 불변식이 깨지지 않도록, 저장 직전에 묶음 멤버를 그룹의 첫 등장 위치로 모아 정렬한다.
+// 묶음이 아닌 행은 원래 자리를 그대로 유지한다.
+function orderedForSave(rows: Row[]): Row[] {
+  const firstIndexByGroup = new Map<string, number>()
+  rows.forEach((r, i) => {
+    if (r.superset_id && !firstIndexByGroup.has(r.superset_id)) {
+      firstIndexByGroup.set(r.superset_id, i)
+    }
+  })
+  return rows
+    .map((r, i) => ({
+      row: r,
+      i,
+      sortKey: r.superset_id ? firstIndexByGroup.get(r.superset_id)! : i,
+    }))
+    .sort((a, b) => a.sortKey - b.sortKey || a.i - b.i)
+    .map((x) => x.row)
+}
+
+// 묶음 멤버를 제거하고 나서, 그룹에 1명만 남으면 더 이상 "묶음"이 아니므로
+// 남은 한 명은 단독 운동으로 되돌린다 (묶음의 정의는 2개 이상 — SUPERSET-AND-TIME.md §1).
+function collapseSingletonGroups(rows: Row[]): Row[] {
+  const counts = new Map<string, number>()
+  for (const r of rows) {
+    if (r.superset_id) counts.set(r.superset_id, (counts.get(r.superset_id) ?? 0) + 1)
+  }
+  return rows.map((r) => {
+    if (r.superset_id && counts.get(r.superset_id) === 1) {
+      return {
+        ...r,
+        superset_id: null,
+        superset_name: null,
+        superset_rest_seconds: null,
+        default_rounds: null,
+      }
+    }
+    return r
+  })
 }
 
 // 루틴 생성/수정 전체화면. 이름 + 운동 목록(드래그 순서변경) 구성 후 저장.
@@ -44,7 +92,14 @@ export function RoutineBuilder({
     () =>
       initial?.entries
         .filter((e) => e.exercise)
-        .map((e) => ({ uid: crypto.randomUUID(), exercise: e.exercise! })) ?? [],
+        .map((e) => ({
+          uid: crypto.randomUUID(),
+          exercise: e.exercise!,
+          superset_id: e.superset_id,
+          superset_name: e.superset_name,
+          superset_rest_seconds: e.superset_rest_seconds,
+          default_rounds: e.default_rounds,
+        })) ?? [],
   )
   const [pickerOpen, setPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -66,9 +121,15 @@ export function RoutineBuilder({
   async function save() {
     setBusy(true)
     try {
-      const ids = rows.map((r) => r.exercise.id)
-      if (initial) await updateRoutine(initial.id, name, ids)
-      else await createRoutine(profileId, name, ids)
+      const entries: RoutineEntryInput[] = orderedForSave(rows).map((r) => ({
+        exercise_id: r.exercise.id,
+        superset_id: r.superset_id,
+        superset_name: r.superset_name,
+        superset_rest_seconds: r.superset_rest_seconds,
+        default_rounds: r.default_rounds,
+      }))
+      if (initial) await updateRoutine(initial.id, name, entries)
+      else await createRoutine(profileId, name, entries)
       onSaved()
     } finally {
       setBusy(false)
@@ -128,7 +189,9 @@ export function RoutineBuilder({
                 key={row.uid}
                 row={row}
                 onRemove={() =>
-                  setRows((rs) => rs.filter((r) => r.uid !== row.uid))
+                  setRows((rs) =>
+                    collapseSingletonGroups(rs.filter((r) => r.uid !== row.uid)),
+                  )
                 }
               />
             ))}
@@ -148,7 +211,17 @@ export function RoutineBuilder({
           exercises={exercises}
           profileId={profileId}
           onPick={(ex) =>
-            setRows((rs) => [...rs, { uid: crypto.randomUUID(), exercise: ex }])
+            setRows((rs) => [
+              ...rs,
+              {
+                uid: crypto.randomUUID(),
+                exercise: ex,
+                superset_id: null,
+                superset_name: null,
+                superset_rest_seconds: null,
+                default_rounds: null,
+              },
+            ])
           }
           onClose={() => setPickerOpen(false)}
           onExercisesChanged={onExercisesChanged}
@@ -180,7 +253,15 @@ function RoutineRow({ row, onRemove }: { row: Row; onRemove: () => void }) {
       >
         ⠿
       </button>
-      <span className="flex-1">{row.exercise.name}</span>
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span>{row.exercise.name}</span>
+        {row.superset_id && (
+          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--color-accent)]/15 px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent)]">
+            {row.superset_name ?? '묶음'} · {row.default_rounds ?? DEFAULT_SUPERSET_ROUNDS}
+            라운드
+          </span>
+        )}
+      </span>
       <span className="text-xs text-[var(--color-text-dim)]">
         {row.exercise.primary_muscle_group}
       </span>

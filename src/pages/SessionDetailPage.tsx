@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useProfile } from '../context/ProfileContext'
 import { getMyWeightKg, setMyWeightKg } from '../lib/profile'
 import {
-  addEntriesBulk,
+  copyEntriesToSession,
   createSession,
   deleteSession,
   getSessionByDate,
   listSessionsOverview,
   todayISO,
+  toRoutineEntryInputs,
 } from '../lib/workouts'
 import { createRoutine } from '../lib/routines'
 import { shareSessionToGroups, unshareFromGroup, type ShareHighlights } from '../lib/share'
@@ -205,8 +206,16 @@ export function SessionDetailPage() {
       const today = todayISO()
       let target = await getSessionByDate(profile.profile_id, today)
       if (!target) target = await createSession(profile, today)
-      const exerciseIds = session.entries.map((e) => e.exercise_id)
-      await addEntriesBulk(target.id, exerciseIds, target.entries.length)
+      await copyEntriesToSession(
+        target.id,
+        session.entries.map((e) => ({
+          exercise_id: e.exercise_id,
+          superset_id: e.superset_id,
+          superset_name: e.superset_name,
+          superset_rest_seconds: e.superset_rest_seconds,
+        })),
+        target.entries.length,
+      )
       navigate('/log')
     } finally {
       setBusy(false)
@@ -500,7 +509,7 @@ export function SessionDetailPage() {
               await createRoutine(
                 profile.profile_id,
                 name,
-                session.entries.map((e) => e.exercise_id),
+                toRoutineEntryInputs(session.entries),
               )
             } catch {
               // 저장 실패 — 조용히 성공 화면으로 넘어가지 않도록 모달을 닫고 알린다

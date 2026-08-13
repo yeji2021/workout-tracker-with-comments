@@ -158,7 +158,18 @@ export async function saveAsRoutine(
   }
 
   const name = extracted.routine_name.trim() || '가져온 루틴'
-  return createRoutine(profileId, name, exerciseIds)
+  // 릴스 추출 결과에는 묶음 개념이 없다 — 전부 단독 운동으로 저장한다.
+  return createRoutine(
+    profileId,
+    name,
+    exerciseIds.map((exercise_id) => ({
+      exercise_id,
+      superset_id: null,
+      superset_name: null,
+      superset_rest_seconds: null,
+      default_rounds: null,
+    })),
+  )
 }
 
 // ── Realtime 구독 (관리자가 처리를 끝내면 목록/뱃지 갱신) ────────────

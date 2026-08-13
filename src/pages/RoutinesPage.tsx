@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from '../context/ProfileContext'
-import type { Exercise, Routine } from '../lib/types'
+import type { Exercise, Routine, RoutineEntry } from '../lib/types'
+import { DEFAULT_SUPERSET_ROUNDS } from '../lib/types'
 import {
   applyRoutineToToday,
   deleteRoutine,
@@ -9,6 +10,45 @@ import {
 } from '../lib/routines'
 import { listExercises, todayISO } from '../lib/workouts'
 import { RoutineBuilder } from '../components/RoutineBuilder'
+
+// 루틴 표시용 렌더 블록 — 단독 운동 하나, 또는 묶음 하나(멤버 여럿).
+// order_index가 이미 묶음별로 연속이라는 불변식을 이용해 순서대로 훑으며 묶는다.
+type RoutineBlock =
+  | { kind: 'single'; key: string; entry: RoutineEntry }
+  | {
+      kind: 'superset'
+      key: string
+      name: string
+      rounds: number
+      entries: RoutineEntry[]
+    }
+
+function groupRoutineEntries(entries: RoutineEntry[]): RoutineBlock[] {
+  const blocks: RoutineBlock[] = []
+  let i = 0
+  while (i < entries.length) {
+    const e = entries[i]
+    if (!e.superset_id) {
+      blocks.push({ kind: 'single', key: e.id, entry: e })
+      i += 1
+      continue
+    }
+    const groupId = e.superset_id
+    const members: RoutineEntry[] = []
+    while (i < entries.length && entries[i].superset_id === groupId) {
+      members.push(entries[i])
+      i += 1
+    }
+    blocks.push({
+      kind: 'superset',
+      key: groupId,
+      name: e.superset_name ?? '묶음',
+      rounds: e.default_rounds ?? DEFAULT_SUPERSET_ROUNDS,
+      entries: members,
+    })
+  }
+  return blocks
+}
 
 export function RoutinesPage() {
   const { profile } = useProfile()
@@ -49,8 +89,7 @@ export function RoutinesPage() {
     if (!profile) return
     setStarting(routine.id)
     try {
-      const ids = routine.entries.map((e) => e.exercise_id)
-      await applyRoutineToToday(profile, ids, todayISO())
+      await applyRoutineToToday(profile, routine.entries, todayISO())
       navigate('/log') // 기록 화면으로 이동 → 바로 세트 입력 시작
     } finally {
       setStarting(null)
@@ -98,14 +137,37 @@ export function RoutinesPage() {
               <button onClick={() => handleDelete(routine)}>삭제</button>
             </div>
           </div>
-          <p className="mb-3 text-sm text-[var(--color-text-dim)]">
-            {routine.entries.length === 0
-              ? '운동 없음'
-              : routine.entries
-                  .map((e) => e.exercise?.name)
-                  .filter(Boolean)
-                  .join(', ')}
-          </p>
+          {routine.entries.length === 0 ? (
+            <p className="mb-3 text-sm text-[var(--color-text-dim)]">운동 없음</p>
+          ) : (
+            <div className="mb-3 flex flex-col gap-1.5">
+              {groupRoutineEntries(routine.entries).map((block) =>
+                block.kind === 'single' ? (
+                  <p key={block.key} className="text-sm text-[var(--color-text-dim)]">
+                    {block.entry.exercise?.name ?? '(알 수 없는 운동)'}
+                  </p>
+                ) : (
+                  <div
+                    key={block.key}
+                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-2.5 py-2"
+                  >
+                    <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[var(--color-accent)]">
+                      <span>{block.name}</span>
+                      <span className="text-[var(--color-text-dim)]">
+                        · {block.rounds}라운드
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--color-text-dim)]">
+                      {block.entries
+                        .map((e) => e.exercise?.name)
+                        .filter(Boolean)
+                        .join(' + ')}
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
           <button
             onClick={() => startRoutine(routine)}
             disabled={starting === routine.id || routine.entries.length === 0}
