@@ -16,6 +16,30 @@
 --   - recovery_code 는 컬럼 단위 GRANT 로 어떤 SELECT 에서도 노출되지 않음
 -- ────────────────────────────────────────────────────────────────────────
 
+-- ── 안전장치 ────────────────────────────────────────────────────────
+-- 이 스크립트는 아래에서 profiles/groups/기록 테이블을 전부 DROP 한다.
+-- 신규 프로젝트 전용이며, 운영 중인 DB 에 실수로 붙여넣으면 데이터가 사라진다.
+-- (2026-08-08 에 실제로 05 대신 이 파일이 실행된 적이 있다. 그때는 뒤쪽
+--  DROP FUNCTION 이 의존성 에러를 내 전체 롤백되면서 우연히 살았다.)
+-- 그래서 profiles 에 행이 하나라도 있으면 여기서 멈춘다.
+--
+-- 정말로 전부 지우고 처음부터 다시 만들 생각이라면 이 DO 블록만 지우고 실행해라.
+DO $$
+DECLARE
+  n BIGINT := 0;
+BEGIN
+  -- 테이블이 아직 없는 신규 프로젝트에서는 조회 자체를 건너뛴다.
+  -- (EXECUTE 로 감싸는 이유: 정적 SQL 이면 테이블이 없을 때 파싱 단계에서 터진다)
+  IF to_regclass('public.profiles') IS NOT NULL THEN
+    EXECUTE 'SELECT count(*) FROM public.profiles' INTO n;
+  END IF;
+
+  IF n > 0 THEN
+    RAISE EXCEPTION
+      '중단: profiles 에 이미 % 건의 데이터가 있다. 01 은 신규 프로젝트 초기화 전용이며 실행하면 전부 삭제된다. 마이그레이션을 추가하려면 02~05 처럼 새 파일을 만들어라. 정말 초기화하려면 이 스크립트 상단의 DO 블록을 지워라.', n;
+  END IF;
+END $$;
+
 -- ── 초기화 (신규 프로젝트 기준 — 기존 데이터가 있다면 모두 삭제됨에 주의)
 DROP TABLE IF EXISTS public.comments CASCADE;
 DROP TABLE IF EXISTS public.reactions CASCADE;
