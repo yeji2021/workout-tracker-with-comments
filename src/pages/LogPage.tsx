@@ -129,7 +129,7 @@ export function LogPage() {
 
   // 추가 후 스크롤 대상. session 커밋(=DOM 갱신) 이후 useEffect에서 실행한다.
   const pendingScroll = useRef<
-    null | { type: 'bottom' } | { type: 'set'; id: string }
+    null | { type: 'bottom' } | { type: 'set'; id: string } | { type: 'timer' }
   >(null)
   useEffect(() => {
     const p = pendingScroll.current
@@ -140,6 +140,10 @@ export function LogPage() {
     if (p.type === 'bottom') {
       const main = document.querySelector('main')
       if (main) main.scrollTop = main.scrollHeight
+    } else if (p.type === 'timer') {
+      document
+        .querySelector('[data-rest-timer]')
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     } else {
       document
         .querySelector(`[data-set-id="${p.id}"]`)
@@ -298,6 +302,7 @@ export function LogPage() {
       scheduleRestBeep(endsAt)
       setRestEndsAt(endsAt)
       setActiveRest(exerciseId ? { exerciseId, base } : null)
+      pendingScroll.current = { type: 'timer' }
       const exerciseName = exercises.find((e) => e.id === exerciseId)?.name
       scheduleRestNotification(endsAt, exerciseName)
     }
@@ -573,18 +578,6 @@ export function LogPage() {
         + 운동 추가
       </button>
 
-      {pickerOpen && profile && (
-        <ExercisePicker
-          exercises={exercises}
-          profileId={profile.profile_id}
-          onPick={handlePick}
-          onClose={() => setPickerOpen(false)}
-          onExercisesChanged={() =>
-            listExercises().then(setExercises)
-          }
-        />
-      )}
-
       {restEndsAt && (
         <RestTimer
           endsAt={restEndsAt}
@@ -596,6 +589,18 @@ export function LogPage() {
             setRestEndsAt(null)
             setActiveRest(null)
           }}
+        />
+      )}
+
+      {pickerOpen && profile && (
+        <ExercisePicker
+          exercises={exercises}
+          profileId={profile.profile_id}
+          onPick={handlePick}
+          onClose={() => setPickerOpen(false)}
+          onExercisesChanged={() =>
+            listExercises().then(setExercises)
+          }
         />
       )}
 

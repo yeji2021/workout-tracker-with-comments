@@ -99,8 +99,8 @@ export function RestTimer({
 
   return (
     <div
-      className="fixed top-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-b border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 shadow-lg"
-      style={{ marginTop: 'var(--safe-top)' }}
+      data-rest-timer
+      className="mt-3 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 shadow-lg"
     >
       <div className="flex items-center gap-3">
         <span className="text-lg">{done ? '✅' : '⏱️'}</span>
