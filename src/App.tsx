@@ -13,6 +13,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ImportPage } from './pages/ImportPage'
+import { ExercisesPage } from './pages/ExercisesPage'
 
 export default function App() {
   return (
@@ -70,6 +71,7 @@ function Gate() {
             <Route path="stats" element={<StatsPage />} />
             <Route path="feed" element={<FeedPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings/exercises" element={<ExercisesPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

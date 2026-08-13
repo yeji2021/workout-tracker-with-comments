@@ -366,6 +366,22 @@ export function SettingsPage() {
         )}
       </section>
 
+      {/* 커스텀 운동 관리 */}
+      <section className="mt-8">
+        <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">
+          운동 관리
+        </h2>
+        <p className="mb-3 text-xs text-[var(--color-text-dim)]">
+          내가 만든 커스텀 운동을 수정하거나 삭제해요.
+        </p>
+        <button
+          onClick={() => navigate('/settings/exercises')}
+          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-2)]"
+        >
+          내 커스텀 운동 관리 →
+        </button>
+      </section>
+
       {/* 프로필 정보 */}
       {profile && (
         <section className="mt-8">
