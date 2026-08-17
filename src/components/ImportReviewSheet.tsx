@@ -481,5 +481,8 @@ function toRows(result: ExtractedRoutine | null): Row[] {
 // 못 거른다. code 속성 유무로 갈라서, 우리가 의도적으로 던진 Error 만 그대로 보여준다.
 function userMessage(e: unknown, fallback: string): string {
   if (e instanceof Error && !('code' in e)) return e.message
+  // 화면에는 한국어 문구를 보여주되 원문은 콘솔에 남긴다.
+  // 이 문구로 덮어 버리면 "컬럼 없음"처럼 전혀 다른 원인을 진단할 방법이 없어진다.
+  console.error('[ImportReviewSheet] 저장 실패:', e)
   return fallback
 }
