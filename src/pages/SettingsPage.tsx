@@ -10,7 +10,6 @@ import {
 } from '../lib/palette'
 import { getMyRecoveryCode } from '../lib/profile'
 import { MuscleBars } from '../components/MuscleBars'
-import { ScreenDiagnostics } from '../components/ScreenDiagnostics'
 import { CopyRow } from '../components/RecoveryCodeCard'
 import type { MuscleGroup } from '../lib/types'
 
@@ -434,9 +433,6 @@ export function SettingsPage() {
           최신 버전으로 새로 받기
         </button>
       </section>
-
-      {/* 탭바 아래 여백 띠 원인 추적 (원인 확정되면 제거) */}
-      <ScreenDiagnostics />
 
       {/* 프로필 정보 */}
       {profile && (

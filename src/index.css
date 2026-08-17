@@ -119,9 +119,19 @@ body {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* 하단 탭바의 안전영역을 뺀 순수 높이. AppLayout에서 실측해 덮어쓴다. */
   --tabbar-content-h: 3.5rem;
+
+  /* 안전영역 인셋(세로 34px)을 그대로 탭바 패딩으로 쓰면 라벨 아래가 통째로
+     비어 "탭바 밑에 이상한 여백 띠가 있다"고 보인다. 실제로 비켜줘야 하는 건
+     홈 인디케이터뿐인데, 인디케이터는 바닥에서 8px 위에 높이 5px 로 뜬다.
+     그래서 인셋에서 이만큼 덜어낸다 — 남는 20px 면 인디케이터 위로 7px 여유가
+     남아 겹치지 않으면서 빈 띠는 눈에 띄지 않는다. 더 붙이거나 떼고 싶으면
+     이 값만 조절하면 된다. */
+  --tabbar-inset-trim: 14px;
+  --tabbar-safe-pad: max(var(--safe-bottom) - var(--tabbar-inset-trim), 0px);
+
   /* 탭바가 차지하는 실제 세로 공간. 인셋은 여기서 더해야 화면 회전 등으로
      인셋이 바뀔 때 JS 측정 없이도 항상 따라온다. */
-  --tabbar-h: calc(var(--tabbar-content-h) + var(--safe-bottom));
+  --tabbar-h: calc(var(--tabbar-content-h) + var(--tabbar-safe-pad));
 }
 
 /* 앱 셸 — 화면 높이를 height:100% 사슬(html>body>#root>셸) 대신 dvh 로 직접
@@ -131,25 +141,6 @@ body {
 .app-shell {
   height: 100%; /* dvh 미지원 폴백 */
   height: 100dvh;
-}
-
-/* 진단용 레이어 색칠 (설정 → 화면 진단). 탭바 아래 띠를 누가 칠하는지
-   눈으로 특정하기 위한 것 — 띠가 아래 색 중 하나면 그 엘리먼트가 범인이고,
-   아무 색도 아니면 웹 화면 바깥(= iOS 시스템 영역)이라는 뜻이다. */
-html.debug-layers {
-  background: #b400ff !important;
-}
-html.debug-layers body {
-  background: #0040ff !important;
-}
-html.debug-layers .app-shell {
-  background: #ffe000 !important;
-}
-html.debug-layers main {
-  background: #00d0ff !important;
-}
-html.debug-layers nav {
-  background: #ff0000 !important;
 }
 
 /* Remove tap highlight on mobile */

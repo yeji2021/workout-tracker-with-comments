@@ -83,7 +83,7 @@ export function AppLayout() {
       <nav
         ref={navRef}
         className="w-full border-t border-[var(--color-border)] bg-[var(--color-bg)]"
-        style={{ paddingBottom: 'var(--safe-bottom)' }}
+        style={{ paddingBottom: 'var(--tabbar-safe-pad)' }}
       >
         <ul className="flex">
           {TABS.map((tab) => (
@@ -93,7 +93,9 @@ export function AppLayout() {
                 end={tab.to === '/'}
                 className={({ isActive }) =>
                   [
-                    'flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors',
+                    // pb 를 pt 보다 줄인 건 아래 안전영역 패딩이 이어 붙기 때문.
+                    // 양쪽을 py-2 로 두면 라벨 아래 여백이 이중으로 쌓여 보인다.
+                    'flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-medium transition-colors',
                     isActive
                       ? 'text-[var(--color-accent)]'
                       : 'text-[var(--color-text-dim)]',
