@@ -23,10 +23,52 @@ const TABS: Tab[] = [
   { to: '/feed', label: '피드', icon: '💬' },
 ]
 
+// iOS 홈 화면 앱은 실행 직후 레이아웃 뷰포트를 실제 화면보다 작게 잡는 일이
+// 있다. 그러면 100dvh 로 잡은 셸이 화면보다 짧아지고, 셸 바닥에 붙은 탭바가
+// 화면 바닥에서 떠서 그 아래에 같은 색 배경이 드러난다 — "탭바 밑 빈 공백".
+// 웹 인스펙터를 붙이면 리레이아웃되며 저절로 고쳐지던 게 이 현상의 증거였다
+// (실측: 탭바 바닥이 화면 바닥보다 58px 위).
+// 홈 화면 앱은 브라우저 UI 가 없어 웹뷰 = 화면 전체이므로, 세로에서는
+// screen.height 를 하한으로 써서 이 오차를 덮는다. (screen.height 는 iOS 에서
+// 방향과 무관하게 세로 기준 높이라, 가로일 땐 쓰면 안 된다.)
+function appHeight(): number {
+  const ih = window.innerHeight
+  const standalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  if (!standalone) return ih
+  const portrait = window.innerWidth === window.screen.width
+  return portrait ? Math.max(ih, window.screen.height) : ih
+}
+
 export function AppLayout() {
   const { profile } = useProfile()
   const feedUnread = useFeedUnread(profile?.profile_id)
   const navRef = useRef<HTMLElement>(null)
+  const shellRef = useRef<HTMLDivElement>(null)
+
+  // 셸 높이를 CSS(100dvh) 대신 실측값으로 못박는다. iOS 가 뷰포트를 늦게
+  // 확정하므로 첫 프레임 한 번으로는 부족해 몇 차례 다시 재고, 이후에도
+  // 회전·복귀 등 값이 바뀔 만한 시점마다 갱신한다.
+  useEffect(() => {
+    const el = shellRef.current
+    if (!el) return
+    const apply = () => {
+      el.style.height = `${appHeight()}px`
+    }
+    apply()
+    const raf = requestAnimationFrame(apply)
+    const timers = [50, 250, 1000].map((ms) => setTimeout(apply, ms))
+    const events = ['resize', 'orientationchange', 'pageshow'] as const
+    events.forEach((e) => window.addEventListener(e, apply))
+    document.addEventListener('visibilitychange', apply)
+    return () => {
+      cancelAnimationFrame(raf)
+      timers.forEach(clearTimeout)
+      events.forEach((e) => window.removeEventListener(e, apply))
+      document.removeEventListener('visibilitychange', apply)
+    }
+  }, [])
 
   // 탭바의 실제 렌더 높이를 측정해 --tabbar-h에 반영한다. 폰트/라벨 변경으로
   // 실측 높이가 하드코딩한 값과 어긋나면 콘텐츠/플로팅 바 아래에 빈 여백이
@@ -52,10 +94,13 @@ export function AppLayout() {
   }, [])
 
   return (
-    // 100dvh + overflow-hidden: 앱 셸은 절대 스크롤되지 않고, 스크롤은 main 만
-    // 담당한다. height:100% 사슬(html>body>#root>여기) 대신 dvh 를 쓰는 이유는
-    // 아래 탭바 주석 참고.
-    <div className="app-shell mx-auto flex max-w-md flex-col overflow-hidden bg-[var(--color-bg)]">
+    // 높이는 위 effect 가 실측값으로 덮어쓴다. CSS 의 100dvh 는 JS 가 돌기 전
+    // 첫 페인트용 폴백이다. overflow-hidden 이라 셸은 스크롤되지 않고
+    // 스크롤은 main 만 담당한다.
+    <div
+      ref={shellRef}
+      className="app-shell mx-auto flex max-w-md flex-col overflow-hidden bg-[var(--color-bg)]"
+    >
       {/* 콘텐츠 영역 — 탭바가 이제 실제 자리를 차지하므로 하단 여백은 불필요 */}
       <main
         className="flex-1 overflow-y-auto"
