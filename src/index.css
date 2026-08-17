@@ -141,6 +141,28 @@ body {
   pointer-events: none;
 }
 
+/* 진단용 레이어 색칠 (설정 → 화면 진단). 탭바 아래 띠를 누가 칠하는지
+   눈으로 특정하기 위한 것 — 띠가 아래 색 중 하나면 그 엘리먼트가 범인이고,
+   아무 색도 아니면 웹 화면 바깥(= iOS 시스템 영역)이라는 뜻이다. */
+html.debug-layers {
+  background: #b400ff !important;
+}
+html.debug-layers body {
+  background: #0040ff !important;
+}
+html.debug-layers #root > div {
+  background: #ffe000 !important;
+}
+html.debug-layers main {
+  background: #00d0ff !important;
+}
+html.debug-layers .tabbar {
+  background: #ff0000 !important;
+}
+html.debug-layers .tabbar::after {
+  background: #00c000 !important;
+}
+
 /* Remove tap highlight on mobile */
 * {
   -webkit-tap-highlight-color: transparent;

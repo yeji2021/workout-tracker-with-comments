@@ -9,6 +9,7 @@ import {
   paletteContrast,
 } from '../lib/palette'
 import { MuscleBars } from '../components/MuscleBars'
+import { ScreenDiagnostics } from '../components/ScreenDiagnostics'
 import type { MuscleGroup } from '../lib/types'
 
 const PREVIEW_DATA: Record<MuscleGroup, number> = {
@@ -413,6 +414,9 @@ export function SettingsPage() {
           최신 버전으로 새로 받기
         </button>
       </section>
+
+      {/* 탭바 아래 여백 띠 원인 추적 (원인 확정되면 제거) */}
+      <ScreenDiagnostics />
 
       {/* 프로필 정보 */}
       {profile && (
