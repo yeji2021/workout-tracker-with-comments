@@ -434,6 +434,19 @@ export function SettingsPage() {
         </button>
       </section>
 
+      {/* 지금 이 기기가 돌리고 있는 빌드. "업데이트했는데 그대로"일 때
+          코드 문제인지 배포/캐시 문제인지 여기서 바로 갈린다. */}
+      <section className="mt-8">
+        <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">
+          버전
+        </h2>
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+          <div className="font-mono text-xs break-all text-[var(--color-text-dim)]">
+            {__BUILD_ID__}
+          </div>
+        </div>
+      </section>
+
       {/* 프로필 정보 */}
       {profile && (
         <section className="mt-8">

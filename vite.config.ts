@@ -1,10 +1,31 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 폰이 지금 어느 빌드를 돌리고 있는지 앱 안에서 눈으로 확인하기 위한 표식.
+// "업데이트했는데 그대로다"가 (1) 코드가 안 고쳐진 건지 (2) 새 빌드가 기기에
+// 도달을 못 한 건지 구분이 안 돼 몇 번을 헛돌았다. 설정 맨 아래에 찍는다.
+function buildId(): string {
+  const sha =
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    (() => {
+      try {
+        return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+          .toString()
+          .trim()
+      } catch {
+        return ''
+      }
+    })()
+  const t = new Date().toISOString().replace('T', ' ').slice(0, 16)
+  return `${t}Z · ${sha.slice(0, 7) || 'nogit'}`
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(buildId()) },
   plugins: [
     react(),
     tailwindcss(),
