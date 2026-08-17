@@ -26,6 +26,33 @@ function readEnvInsets() {
   return v
 }
 
+// 화면 맨 아래 픽셀들의 "주인"을 직접 캐묻는다. 이게 이 진단의 핵심 —
+// 색 해석에 의존하지 않고 어느 엘리먼트가 그 자리를 차지하는지 확정한다.
+//  · 맨 아래(1px)의 주인이 NAV  → 탭바가 화면 바닥까지 닿아 있다는 뜻이고,
+//    그래도 띠가 보인다면 그건 웹뷰 바깥(iOS 시스템 영역)이라 CSS 로는 못 고친다
+//  · BODY/HTML/#root → 셸이나 탭바가 짧다는 뜻 (레이아웃 문제)
+function probeBottom() {
+  const x = Math.round(window.innerWidth / 2)
+  return [1, 3, 6, 12, 20, 34, 50, 90].map((k) => {
+    const y = window.innerHeight - k
+    const el = document.elementFromPoint(x, y)
+    let id = '(없음)'
+    if (el) {
+      const cls =
+        typeof el.className === 'string' && el.className
+          ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.')
+          : ''
+      id = `${el.tagName}${el.id ? '#' + el.id : ''}${cls}`
+    }
+    return {
+      // 화면 바닥에서 위로 k 픽셀
+      up: k,
+      el: id.slice(0, 48),
+      bg: el ? getComputedStyle(el).backgroundColor : null,
+    }
+  })
+}
+
 function collect() {
   const env = readEnvInsets()
   const nav = document.querySelector('nav')
@@ -40,6 +67,8 @@ function collect() {
     .map((h) => h.split('/').pop())
 
   return {
+    // 0) 화면 최하단 픽셀의 주인 — 가장 중요한 값
+    bottomPixels: probeBottom(),
     // 1) 웹뷰가 화면 전체를 쓰고 있는가 (viewport-fit=cover 가 먹었는가)
     env,
     innerHeight: window.innerHeight,
@@ -142,6 +171,36 @@ export function ScreenDiagnostics() {
           >
             {copied ? '복사됨 ✓' : '결과 복사하기'}
           </button>
+          {/* 스크린샷만 보내도 읽히도록 이 표는 크게 렌더한다 */}
+          <div className="mt-3 rounded-xl border-2 border-[var(--color-accent)] p-3">
+            <div className="mb-2 text-sm font-bold">
+              화면 바닥 픽셀의 주인
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[var(--color-text-dim)]">
+                  <th className="pb-1 text-left font-semibold">바닥에서</th>
+                  <th className="pb-1 text-left font-semibold">엘리먼트</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.bottomPixels.map((p) => (
+                  <tr key={p.up} className="border-t border-[var(--color-border)]">
+                    <td className="py-1 pr-2 whitespace-nowrap tabular-nums">
+                      {p.up}px 위
+                    </td>
+                    <td className="py-1 font-mono text-[10px] break-all">
+                      {p.el}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[11px] text-[var(--color-text-dim)]">
+              맨 윗줄(1px 위)이 <b>NAV</b> 면 탭바가 화면 바닥까지 닿은
+              것이고, 그래도 띠가 보이면 웹 화면 바깥이라는 뜻이에요.
+            </p>
+          </div>
           <pre className="mt-2 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[10px] leading-relaxed">
             {text}
           </pre>
