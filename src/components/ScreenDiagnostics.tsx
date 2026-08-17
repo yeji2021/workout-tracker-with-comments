@@ -28,10 +28,11 @@ function readEnvInsets() {
 
 function collect() {
   const env = readEnvInsets()
-  const nav = document.querySelector('nav.tabbar')
+  const nav = document.querySelector('nav')
+  const shell = document.querySelector('.app-shell')
   const navR = nav?.getBoundingClientRect()
   const navCS = nav ? getComputedStyle(nav) : null
-  const afterCS = nav ? getComputedStyle(nav, '::after') : null
+  const shellR = shell?.getBoundingClientRect()
   const rootCS = getComputedStyle(document.documentElement)
   const css = [...document.styleSheets]
     .map((s) => s.href)
@@ -50,7 +51,11 @@ function collect() {
     displayMode: ['standalone', 'fullscreen', 'minimal-ui', 'browser'].find(
       (m) => matchMedia(`(display-mode: ${m})`).matches,
     ),
-    // 3) 탭바가 실제로 화면 바닥까지 닿아 있는가
+    // 3) 셸과 탭바가 실제로 화면 바닥까지 닿아 있는가
+    shellHeight: shellR?.height,
+    shellBottom: shellR?.bottom,
+    gapBelowShell: shellR ? window.innerHeight - shellR.bottom : null,
+    navPosition: navCS?.position,
     navTop: navR?.top,
     navBottom: navR?.bottom,
     navHeight: navR?.height,
@@ -59,8 +64,8 @@ function collect() {
     // 4) 각 레이어 색 — 띠 색과 대조하면 누가 칠했는지 나온다
     colorHtml: rootCS.backgroundColor,
     colorBody: getComputedStyle(document.body).backgroundColor,
+    colorShell: shell ? getComputedStyle(shell).backgroundColor : null,
     colorNav: navCS?.backgroundColor,
-    colorNavAfter: afterCS?.backgroundColor,
     themeColorMeta: document
       .querySelector('meta[name="theme-color"]')
       ?.getAttribute('content'),
@@ -104,10 +109,9 @@ export function ScreenDiagnostics() {
       {painted && (
         <ul className="mb-2 space-y-1 rounded-xl border border-[var(--color-border)] p-3 text-xs">
           <li>🟥 빨강 — 탭바 본체</li>
-          <li>🟩 초록 — 탭바 배경 연장(::after)</li>
           <li>🟦 파랑 — body</li>
           <li>🟪 보라 — html</li>
-          <li>🟨 노랑 — 앱 래퍼 / 🩵 하늘 — 콘텐츠 영역</li>
+          <li>🟨 노랑 — 앱 셸 / 🩵 하늘 — 콘텐츠 영역</li>
           <li className="pt-1 font-semibold">
             띠가 이 중 아무 색도 아니면(검정·회색 등) 웹 화면 바깥, 즉 iOS가
             직접 칠하는 영역이에요.

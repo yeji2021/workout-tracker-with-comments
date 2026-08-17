@@ -52,11 +52,14 @@ export function AppLayout() {
   }, [])
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col bg-[var(--color-bg)]">
-      {/* 콘텐츠 영역 — 하단 탭바 높이만큼 여백 확보 */}
+    // 100dvh + overflow-hidden: 앱 셸은 절대 스크롤되지 않고, 스크롤은 main 만
+    // 담당한다. height:100% 사슬(html>body>#root>여기) 대신 dvh 를 쓰는 이유는
+    // 아래 탭바 주석 참고.
+    <div className="app-shell mx-auto flex max-w-md flex-col overflow-hidden bg-[var(--color-bg)]">
+      {/* 콘텐츠 영역 — 탭바가 이제 실제 자리를 차지하므로 하단 여백은 불필요 */}
       <main
         className="flex-1 overflow-y-auto"
-        style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--tabbar-h)' }}
+        style={{ paddingTop: 'var(--safe-top)' }}
       >
         <Outlet />
       </main>
@@ -67,15 +70,19 @@ export function AppLayout() {
       {/* 새 버전 배포 감지 시 업데이트 유도 토스트 */}
       <UpdateToast />
 
-      {/* 하단 탭바 (모바일 앱 스타일, safe-area 대응)
-          iOS standalone(홈 화면 앱)에서 fixed + transform + backdrop-filter 조합은
-          별도 합성 레이어로 올라가 러버밴드 스크롤 시 뷰포트 하단까지 칠해지지
-          않고 빈 띠를 남긴다. 그래서 중앙 정렬은 transform 대신 inset-x-0+mx-auto로,
-          배경은 반투명+blur 대신 불투명으로 처리한다.
-          .tabbar 는 index.css 에서 배경을 화면 밖까지 흘려보내는 보험(::after). */}
+      {/* 하단 탭바 — position:fixed 를 쓰지 않는다.
+          실기기 진단(레이어 색칠)에서 탭바 아래 띠의 정체가 body 배경으로
+          확인됐다. iOS standalone 에서 fixed 탭바가 레이아웃 박스 바닥에 정확히
+          정렬되지 않아 아래에 body 가 드러나고, 배경을 화면 밖까지 흘려보내던
+          ::after 보험조차 fixed 합성 레이어 경계에서 잘려나가 소용이 없었다.
+          (그래서 CSS 를 아무리 고쳐도 안 잡혔다.)
+
+          애초에 fixed 일 이유가 없다 — 이 nav 는 100dvh 플렉스 컬럼의 마지막
+          자식이라 일반 흐름에 두면 항상 셸 바닥에 딱 붙는다. fixed 를 걷어내면
+          iOS 의 fixed 관련 퀴크(합성 레이어, 러버밴드, 클리핑)가 통째로 사라진다. */}
       <nav
         ref={navRef}
-        className="tabbar fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-[var(--color-border)] bg-[var(--color-bg)]"
+        className="w-full border-t border-[var(--color-border)] bg-[var(--color-bg)]"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
         <ul className="flex">

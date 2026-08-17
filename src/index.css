@@ -124,21 +124,13 @@ body {
   --tabbar-h: calc(var(--tabbar-content-h) + var(--safe-bottom));
 }
 
-/* 하단 탭바 — 홈 인디케이터 영역(env(safe-area-inset-bottom), 아이폰 34px)은
-   탭바의 padding-bottom 으로 확보하고 탭바 배경색으로 칠한다. 다만 iOS
-   standalone 에서는 fixed 레이어가 뷰포트 맨 아래까지 정확히 칠해지지 않거나
-   러버밴드 바운스 중 잠깐 밀려서, 탭바 아래에 다른 색 띠가 남는 일이 있었다.
-   ::after 로 배경을 화면 밖까지 흘려보내 그 자리를 항상 탭바 색으로 채운다.
-   (background: inherit → 테마가 바뀌어도 탭바와 자동으로 같은 색) */
-.tabbar::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 120px;
-  background: inherit;
-  pointer-events: none;
+/* 앱 셸 — 화면 높이를 height:100% 사슬(html>body>#root>셸) 대신 dvh 로 직접
+   잡는다. viewport-fit=cover 인 iOS standalone 에서 dvh 는 안전영역까지 포함한
+   실제 화면 높이라, 셸 바닥 = 물리적 화면 바닥이 보장된다. 탭바는 이 셸의
+   마지막 플렉스 자식이므로 자동으로 화면 맨 아래에 붙는다. */
+.app-shell {
+  height: 100%; /* dvh 미지원 폴백 */
+  height: 100dvh;
 }
 
 /* 진단용 레이어 색칠 (설정 → 화면 진단). 탭바 아래 띠를 누가 칠하는지
@@ -150,17 +142,14 @@ html.debug-layers {
 html.debug-layers body {
   background: #0040ff !important;
 }
-html.debug-layers #root > div {
+html.debug-layers .app-shell {
   background: #ffe000 !important;
 }
 html.debug-layers main {
   background: #00d0ff !important;
 }
-html.debug-layers .tabbar {
+html.debug-layers nav {
   background: #ff0000 !important;
-}
-html.debug-layers .tabbar::after {
-  background: #00c000 !important;
 }
 
 /* Remove tap highlight on mobile */
