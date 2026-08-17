@@ -121,6 +121,13 @@ function humanizeRpcError(message: string): string {
   return message
 }
 
+// 설정 화면에서 복구 키를 다시 확인할 때 사용 (scripts/07-view-recovery-code.sql)
+export async function getMyRecoveryCode(): Promise<string> {
+  const { data, error } = await supabase.rpc('get_my_recovery_code')
+  if (error) throw new Error(humanizeRpcError(error.message))
+  return data as string
+}
+
 // ── 온보딩/복구 RPC 래퍼 ────────────────────────────────────────────
 export async function createGroupAndJoin(nickname: string): Promise<Profile> {
   await ensureAnonSession()

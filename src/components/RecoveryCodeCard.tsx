@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Profile } from '../lib/types'
 
-// 복구코드는 발급 시 이 화면에서만 노출된다. 사용자가 저장을 확인해야 입장.
+// 발급 직후 이 화면에서 먼저 보여준다. 사용자가 저장을 확인해야 입장.
+// (설정 화면에서도 다시 볼 수 있다 — get_my_recovery_code RPC)
 export function RecoveryCodeCard({
   profile,
   onDone,
@@ -19,8 +20,8 @@ export function RecoveryCodeCard({
         <p className="mt-2 text-sm text-[var(--color-text-dim)]">
           폰을 바꾸거나 앱 데이터를 지우면 이 코드로만 기록을 되찾을 수 있어요.
           <br />
-          <b className="text-[var(--color-text)]">지금 꼭 저장</b>해두세요. 다시
-          볼 수 없어요.
+          <b className="text-[var(--color-text)]">지금 꼭 저장</b>해두세요. 나중에
+          설정에서도 다시 볼 수 있어요.
         </p>
       </div>
 
@@ -52,7 +53,7 @@ export function RecoveryCodeCard({
   )
 }
 
-function CopyRow({
+export function CopyRow({
   label,
   value,
   highlight,

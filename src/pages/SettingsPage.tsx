@@ -8,8 +8,10 @@ import {
   extractColors,
   paletteContrast,
 } from '../lib/palette'
+import { getMyRecoveryCode } from '../lib/profile'
 import { MuscleBars } from '../components/MuscleBars'
 import { ScreenDiagnostics } from '../components/ScreenDiagnostics'
+import { CopyRow } from '../components/RecoveryCodeCard'
 import type { MuscleGroup } from '../lib/types'
 
 const PREVIEW_DATA: Record<MuscleGroup, number> = {
@@ -101,6 +103,24 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
+  const [recoveryLoading, setRecoveryLoading] = useState(false)
+  const [recoveryError, setRecoveryError] = useState<string | null>(null)
+
+  async function revealRecoveryCode() {
+    setRecoveryLoading(true)
+    setRecoveryError(null)
+    try {
+      setRecoveryCode(await getMyRecoveryCode())
+    } catch (err) {
+      setRecoveryError(
+        err instanceof Error ? err.message : '복구 키를 불러오지 못했어요',
+      )
+    } finally {
+      setRecoveryLoading(false)
+    }
+  }
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -430,6 +450,46 @@ export function SettingsPage() {
               <span className="font-medium">{profile.nickname}</span>
             </div>
           </div>
+        </section>
+      )}
+
+      {/* 복구 키 — 폰을 바꾸거나 앱 데이터가 지워졌을 때 기록을 되찾는 키.
+          필요할 때만 서버에서 불러와 보여준다(화면에 상시 노출하지 않음). */}
+      {profile && (
+        <section className="mt-8">
+          <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">
+            복구 키
+          </h2>
+          <p className="mb-3 text-xs text-[var(--color-text-dim)]">
+            폰을 바꾸거나 앱 데이터를 지워도 이 키로 내 기록을 되찾을 수 있어요.
+            안전한 곳에 보관하고 다른 사람에게 알려주지 마세요.
+          </p>
+
+          {recoveryCode ? (
+            <div className="flex flex-col gap-2">
+              <CopyRow label="복구 키" value={recoveryCode} highlight />
+              <button
+                onClick={() => setRecoveryCode(null)}
+                className="self-start text-xs text-[var(--color-text-dim)] underline"
+              >
+                가리기
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={revealRecoveryCode}
+              disabled={recoveryLoading}
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-60"
+            >
+              {recoveryLoading ? '불러오는 중…' : '복구 키 보기'}
+            </button>
+          )}
+
+          {recoveryError && (
+            <p className="mt-2 text-xs text-[var(--color-danger)]">
+              {recoveryError}
+            </p>
+          )}
         </section>
       )}
     </div>
