@@ -97,6 +97,9 @@ html {
   /* iOS PWA에서 동적 툴바 접힘/스크롤 바운스 시 html 배경(기본 흰색)이
      하단 탭바 아래로 잠깐 노출되는 것을 방지 (body 배경과 동일하게) */
   background: var(--color-bg);
+  /* 문서 레벨 러버밴드도 막는다. body 에만 걸면 iOS standalone 에서 문서
+     자체가 튕기면서 fixed 탭바가 같이 밀려 아래에 빈 띠가 보인다. */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -119,6 +122,23 @@ body {
   /* 탭바가 차지하는 실제 세로 공간. 인셋은 여기서 더해야 화면 회전 등으로
      인셋이 바뀔 때 JS 측정 없이도 항상 따라온다. */
   --tabbar-h: calc(var(--tabbar-content-h) + var(--safe-bottom));
+}
+
+/* 하단 탭바 — 홈 인디케이터 영역(env(safe-area-inset-bottom), 아이폰 34px)은
+   탭바의 padding-bottom 으로 확보하고 탭바 배경색으로 칠한다. 다만 iOS
+   standalone 에서는 fixed 레이어가 뷰포트 맨 아래까지 정확히 칠해지지 않거나
+   러버밴드 바운스 중 잠깐 밀려서, 탭바 아래에 다른 색 띠가 남는 일이 있었다.
+   ::after 로 배경을 화면 밖까지 흘려보내 그 자리를 항상 탭바 색으로 채운다.
+   (background: inherit → 테마가 바뀌어도 탭바와 자동으로 같은 색) */
+.tabbar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: inherit;
+  pointer-events: none;
 }
 
 /* Remove tap highlight on mobile */

@@ -71,10 +71,11 @@ export function AppLayout() {
           iOS standalone(홈 화면 앱)에서 fixed + transform + backdrop-filter 조합은
           별도 합성 레이어로 올라가 러버밴드 스크롤 시 뷰포트 하단까지 칠해지지
           않고 빈 띠를 남긴다. 그래서 중앙 정렬은 transform 대신 inset-x-0+mx-auto로,
-          배경은 반투명+blur 대신 불투명으로 처리한다. */}
+          배경은 반투명+blur 대신 불투명으로 처리한다.
+          .tabbar 는 index.css 에서 배경을 화면 밖까지 흘려보내는 보험(::after). */}
       <nav
         ref={navRef}
-        className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-[var(--color-border)] bg-[var(--color-bg)]"
+        className="tabbar fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-[var(--color-border)] bg-[var(--color-bg)]"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
         <ul className="flex">

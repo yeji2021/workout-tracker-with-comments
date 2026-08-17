@@ -382,6 +382,38 @@ export function SettingsPage() {
         </button>
       </section>
 
+      {/* 앱 강제 갱신 — 홈 화면 PWA가 구버전 화면에 갇혔을 때의 탈출구.
+          서비스워커/캐시를 전부 지우고 다시 받아온다. */}
+      <section className="mt-8">
+        <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">
+          앱 갱신
+        </h2>
+        <p className="mb-3 text-xs text-[var(--color-text-dim)]">
+          화면이 예전 버전 그대로거나 이상하게 보이면 눌러주세요. 저장된 운동
+          기록은 지워지지 않아요.
+        </p>
+        <button
+          onClick={async () => {
+            if (!confirm('앱을 최신 버전으로 다시 받아올까요?')) return
+            try {
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations()
+                await Promise.all(regs.map((r) => r.unregister()))
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys()
+                await Promise.all(keys.map((k) => caches.delete(k)))
+              }
+            } finally {
+              window.location.reload()
+            }
+          }}
+          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-2)]"
+        >
+          최신 버전으로 새로 받기
+        </button>
+      </section>
+
       {/* 프로필 정보 */}
       {profile && (
         <section className="mt-8">
