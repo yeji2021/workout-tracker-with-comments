@@ -14,7 +14,13 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { useProfile } from '../context/ProfileContext'
-import type { Exercise, SessionBlock, WorkoutSession, WorkoutSet } from '../lib/types'
+import type {
+  Exercise,
+  SessionBlock,
+  SupersetPreset,
+  WorkoutSession,
+  WorkoutSet,
+} from '../lib/types'
 import {
   addEntry,
   addSet,
@@ -47,6 +53,12 @@ import { type Cheer } from '../lib/live'
 import { useLive } from '../context/LiveContext'
 import { createRoutine } from '../lib/routines'
 import {
+  applySupersetPresetToToday,
+  createSupersetPreset,
+  deleteSupersetPreset,
+  listSupersetPresets,
+} from '../lib/supersetPresets'
+import {
   DEFAULT_REST_SECONDS,
   clampRest,
   listRestPrefs,
@@ -69,6 +81,7 @@ import { SupersetSetupSheet } from '../components/SupersetSetupSheet'
 import { ExerciseTimer } from '../components/ExerciseTimer'
 import { RestTimer } from '../components/RestTimer'
 import { SaveRoutineModal } from '../components/SaveRoutineModal'
+import { SavePresetModal } from '../components/SavePresetModal'
 import { ElapsedTimer, fmtDuration } from '../components/ElapsedTimer'
 import { SessionSummaryModal } from '../components/SessionSummaryModal'
 import { ShareSheet } from '../components/ShareSheet'
@@ -150,6 +163,8 @@ export function LogPage() {
     exerciseName?: string
   } | null>(null)
   const [saveRoutineOpen, setSaveRoutineOpen] = useState(false)
+  const [presets, setPresets] = useState<SupersetPreset[]>([])
+  const [savePresetTarget, setSavePresetTarget] = useState<SupersetBlock | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareHighlight, setShareHighlight] = useState<ShareHighlights | null>(null)
   const [completing, setCompleting] = useState(false)
@@ -229,15 +244,17 @@ export function LogPage() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [exs, ses, prefs] = await Promise.all([
+      const [exs, ses, prefs, pres] = await Promise.all([
         listExercises(),
         getSessionByDate(profile.profile_id, today),
         listRestPrefs(profile.profile_id),
+        listSupersetPresets(profile.profile_id),
       ])
       if (cancelled) return
       setExercises(exs)
       setSession(ses)
       setRestPrefs(prefs)
+      setPresets(pres)
       setLoading(false)
       // 오늘 세션에 이미 있는 운동들의 지난 기록 로드
       if (ses) ses.entries.forEach((e) => loadLast(e.exercise_id))
@@ -306,6 +323,40 @@ export function LogPage() {
     setSupersetDraft(null)
     pendingScroll.current = { type: 'bottom' }
     await refreshSession()
+  }
+
+  // 저장된 묶음 프리셋을 하나의 운동처럼 골라서 바로 오늘 기록에 추가
+  async function handlePickPreset(preset: SupersetPreset) {
+    if (!profile) return
+    await applySupersetPresetToToday(profile, preset, today)
+    setPickerMode(null)
+    pendingScroll.current = { type: 'bottom' }
+    await refreshSession()
+  }
+
+  async function handleDeletePreset(preset: SupersetPreset) {
+    if (!window.confirm(`"${preset.name}" 프리셋을 삭제할까요?`)) return
+    await deleteSupersetPreset(preset.id)
+    setPresets((ps) => ps.filter((p) => p.id !== preset.id))
+  }
+
+  // 지금 입력된 묶음의 무게/횟수 그대로 프리셋으로 저장
+  async function handleSaveAsPreset(name: string) {
+    if (!profile || !savePresetTarget) return
+    const preset = await createSupersetPreset(
+      profile.profile_id,
+      name,
+      savePresetTarget.restSeconds,
+      savePresetTarget.entries.map((e) => ({
+        exercise_id: e.exercise_id,
+        sets: e.sets.map((s) => ({
+          weight_kg: s.weight_kg,
+          reps: s.reps,
+          duration_seconds: s.duration_seconds,
+        })),
+      })),
+    )
+    setPresets((ps) => [preset, ...ps])
   }
 
   // ── 세트 편집 ──────────────────────────────────────────────────
@@ -936,6 +987,7 @@ export function LogPage() {
                   }
                   onUngroup={() => handleUngroupSuperset(block)}
                   onDelete={() => handleDeleteSuperset(block)}
+                  onSaveAsPreset={() => setSavePresetTarget(block)}
                 />
               ),
             )}
@@ -994,6 +1046,17 @@ export function LogPage() {
             setPickerMode(null)
             setSupersetDraft(exs)
           }}
+          presets={presets}
+          onPickPreset={handlePickPreset}
+          onDeletePreset={handleDeletePreset}
+        />
+      )}
+
+      {savePresetTarget && (
+        <SavePresetModal
+          defaultName={savePresetTarget.name}
+          onClose={() => setSavePresetTarget(null)}
+          onSave={(name) => handleSaveAsPreset(name)}
         />
       )}
 

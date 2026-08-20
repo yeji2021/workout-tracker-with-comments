@@ -30,6 +30,7 @@ export function SupersetCard({
   onChangeRestSeconds,
   onUngroup,
   onDelete,
+  onSaveAsPreset,
 }: {
   supersetId: string
   name: string
@@ -56,6 +57,7 @@ export function SupersetCard({
   onChangeRestSeconds: (newSeconds: number) => void
   onUngroup: () => void
   onDelete: () => void
+  onSaveAsPreset?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: supersetId })
@@ -181,6 +183,14 @@ export function SupersetCard({
           >
             묶음 해제
           </button>
+          {onSaveAsPreset && (
+            <button
+              onClick={onSaveAsPreset}
+              className="mb-2 block w-full text-left text-[var(--color-text)]"
+            >
+              📦 프리셋으로 저장 (지금 무게/횟수 그대로)
+            </button>
+          )}
           <button onClick={handleDelete} className="block w-full text-left text-red-500">
             묶음 삭제
           </button>

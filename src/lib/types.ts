@@ -110,6 +110,34 @@ export interface RoutineEntryInput {
   default_rounds: number | null
 }
 
+// ── 묶음 운동(슈퍼세트) 프리셋 ─────────────────────────────────────────
+// 루틴과 달리 무게/횟수까지 고정해서 저장 — 적용 시 "지난 기록"이 아니라
+// 이 값을 그대로 넣는다. 운동 고르기 화면에서 하나의 운동처럼 고른다.
+export interface SupersetPresetSet {
+  weight_kg: number | null
+  reps: number
+  duration_seconds: number | null
+}
+
+export interface SupersetPresetExercise {
+  exercise_id: string
+  exercise?: Exercise
+  sets: SupersetPresetSet[]
+}
+
+export interface SupersetPreset {
+  id: string
+  name: string
+  rest_seconds: number
+  exercises: SupersetPresetExercise[]
+}
+
+// 저장 시 넘기는 입력 (현재 세션의 묶음 멤버를 그대로 스냅샷)
+export interface SupersetPresetMemberInput {
+  exercise_id: string
+  sets: SupersetPresetSet[]
+}
+
 // 한 사용자가 속한 그룹 (다대다 — profile당 여러 그룹 가능)
 export interface Group {
   group_id: string
