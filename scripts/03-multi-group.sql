@@ -125,12 +125,15 @@ CREATE POLICY "groups_update_member" ON public.groups
 CREATE POLICY "profiles_select_shared_group" ON public.profiles
   FOR SELECT USING (id = public.current_profile_id() OR public.shares_group_with(id));
 
+-- ss.session_id = workout_sessions.id 로 명시 qualify 필요 — session_shares도
+-- PK 컬럼명이 id라서 unqualified id를 쓰면 ss.id로 섀도잉되어 EXISTS가 항상
+-- 거짓이 된다 (2026-08-19, scripts/08-fix-shared-session-visibility.sql 참고).
 CREATE POLICY "sessions_select" ON public.workout_sessions
   FOR SELECT USING (
     user_id = public.current_profile_id()
     OR EXISTS (
       SELECT 1 FROM public.session_shares ss
-      WHERE ss.session_id = id AND public.is_group_member(ss.group_id)
+      WHERE ss.session_id = workout_sessions.id AND public.is_group_member(ss.group_id)
     )
   );
 
